@@ -15,11 +15,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import SpreadsheetConfig from '@/components/SpreadsheetConfig';
+import DatabaseConfig from '@/components/DatabaseConfig';
 import SyncButton from '@/components/SyncButton';
 import { useInventoryContext } from '@/context/InventoryContext';
-import { Search, Plus, Package, TrendingUp, TrendingDown, ArrowRightLeft, Settings, FileSpreadsheet, CheckCircle, Save } from 'lucide-react';
+import { Search, Plus, Package, TrendingUp, TrendingDown, ArrowRightLeft, Settings, Database, CheckCircle, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabaseService } from '@/services/supabaseService';
 
 const Inventory = () => {
   const { 
@@ -35,22 +36,21 @@ const Inventory = () => {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('items');
-  const [spreadsheetConfig, setSpreadsheetConfig] = useState<{
-    spreadsheetId: string;
-    range: string;
-    apiKey: string;
+  const [databaseConfig, setDatabaseConfig] = useState<{
+    supabaseUrl: string;
+    supabaseKey: string;
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [showSpreadsheetConfig, setShowSpreadsheetConfig] = useState(false);
+  const [showDatabaseConfig, setShowDatabaseConfig] = useState(false);
 
   // Carregar configuração salva
   useEffect(() => {
-    const savedConfig = localStorage.getItem('sheets-config-inventory');
+    const savedConfig = localStorage.getItem('supabase-config');
     if (savedConfig) {
       try {
-        setSpreadsheetConfig(JSON.parse(savedConfig));
+        setDatabaseConfig(JSON.parse(savedConfig));
       } catch (error) {
-        console.error('Erro ao carregar configuração:', error);
+        console.error('Erro ao carregar configuração do Supabase:', error);
       }
     }
   }, []);
@@ -74,22 +74,22 @@ const Inventory = () => {
     }
   };
 
-  const handleConfigSave = (config: { spreadsheetId: string; range: string; apiKey: string }) => {
-    // Salvar configuração específica para inventário
-    localStorage.setItem('sheets-config-inventory', JSON.stringify(config));
-    setSpreadsheetConfig(config);
-    setShowSpreadsheetConfig(false);
+  const handleConfigSave = (config: { supabaseUrl: string; supabaseKey: string }) => {
+    // Salvar configuração do Supabase
+    localStorage.setItem('supabase-config', JSON.stringify(config));
+    setDatabaseConfig(config);
+    setShowDatabaseConfig(false);
     toast({
       title: "Sucesso",
-      description: "Configuração da planilha salva com sucesso",
+      description: "Configuração do Supabase salva com sucesso",
     });
   };
 
   const handleSyncInventory = async () => {
-    if (!spreadsheetConfig?.spreadsheetId) {
+    if (!databaseConfig?.supabaseUrl) {
       toast({
         title: "Erro",
-        description: "Configure primeiro a planilha do inventário",
+        description: "Configure primeiro a conexão com o Supabase",
         variant: "destructive",
       });
       return;
@@ -97,15 +97,21 @@ const Inventory = () => {
 
     setIsSyncing(true);
     try {
-      // Implementar sincronização do inventário aqui
+      // Inicializar cliente Supabase com as configurações salvas
+      supabaseService.initializeClient(databaseConfig.supabaseUrl, databaseConfig.supabaseKey);
+      
+      // Implementar sincronização do inventário com Supabase aqui
+      // Exemplo: const result = await supabaseService.syncInventory(items);
+      
       toast({
         title: "Sucesso",
-        description: "Inventário sincronizado com sucesso",
+        description: "Inventário sincronizado com o Supabase com sucesso",
       });
     } catch (error) {
+      console.error('Erro na sincronização:', error);
       toast({
         title: "Erro",
-        description: "Erro ao sincronizar inventário",
+        description: "Erro ao sincronizar inventário com o Supabase",
         variant: "destructive",
       });
     } finally {
@@ -391,34 +397,31 @@ const Inventory = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
-                Configurações do Google Sheets
+                Configurações do Supabase
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Seção de Configuração da Planilha */}
+              {/* Seção de Configuração do Supabase */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Configuração da Planilha</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Configuração do Banco de Dados</h3>
                 <div className="flex gap-3">
                   <Button 
-                    onClick={() => setShowSpreadsheetConfig(true)}
+                    onClick={() => setShowDatabaseConfig(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                     size="lg"
                   >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Cadastrar Planilha
+                    <Database className="h-4 w-4 mr-2" />
+                    Configurar Supabase
                   </Button>
                 </div>
-                {spreadsheetConfig && (
+                {databaseConfig && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="font-medium text-green-800">Planilha Configurada</span>
+                      <span className="font-medium text-green-800">Supabase Configurado</span>
                     </div>
                     <p className="text-sm text-green-700">
-                      Planilha ID: {spreadsheetConfig.spreadsheetId?.substring(0, 20)}...
-                    </p>
-                    <p className="text-sm text-green-700">
-                      Intervalo: {spreadsheetConfig.range}
+                      URL: {databaseConfig.supabaseUrl?.substring(0, 30)}...
                     </p>
                   </div>
                 )}
@@ -428,9 +431,11 @@ const Inventory = () => {
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Sincronização de Dados</h3>
                 <div className="flex gap-2">
                   <SyncButton
-                    onSync={handleSyncInventory}
+                    onSyncFromDatabase={handleSyncInventory}
                     isSyncing={isSyncing}
-                    label="Sincronizar Inventário"
+                    label="Sincronizar com Supabase"
+                    hasConfig={!!databaseConfig}
+                    onOpenConfig={() => setShowDatabaseConfig(true)}
                   />
                 </div>
               </div>
@@ -475,13 +480,13 @@ const Inventory = () => {
         </Card>
       )}
 
-      {/* Modal de Configuração da Planilha */}
-      <Dialog open={showSpreadsheetConfig} onOpenChange={setShowSpreadsheetConfig}>
+      {/* Modal de Configuração do Supabase */}
+      <Dialog open={showDatabaseConfig} onOpenChange={setShowDatabaseConfig}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Configurar Google Sheets - Inventário</DialogTitle>
+            <DialogTitle>Configurar Supabase - Inventário</DialogTitle>
           </DialogHeader>
-          <SpreadsheetConfig
+          <DatabaseConfig
             onSave={handleConfigSave}
           />
         </DialogContent>

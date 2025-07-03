@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const { login, isAuthenticated, isLoading } = useAuth();
 
   // Se já estiver autenticado, redirecionar para dashboard
@@ -22,16 +23,30 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Limpar mensagem de erro anterior
+    setLoginError(null);
+    
     if (!email || !password) {
+      setLoginError('Email e senha são obrigatórios');
       return;
     }
     
-    setIsSubmitting(true);
-    const success = await login(email, password);
-    setIsSubmitting(false);
-    
-    if (success) {
-      // O redirecionamento será feito automaticamente pelo Navigate acima
+    try {
+      setIsSubmitting(true);
+      console.log('Tentando fazer login com:', email);
+      
+      const success = await login(email, password);
+      
+      if (!success) {
+        // Se o login falhar, mas não lançar exceção, exibir mensagem genérica
+        setLoginError('Falha no login. Verifique suas credenciais.');
+      }
+      // O redirecionamento será feito automaticamente pelo Navigate acima se for bem-sucedido
+    } catch (error: any) {
+      console.error('Erro durante o login:', error);
+      setLoginError(error.message || 'Ocorreu um erro durante o login');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -72,6 +87,20 @@ const Login = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {loginError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-3 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm">{loginError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -137,6 +166,16 @@ const Login = () => {
               <p className="text-sm text-blue-800 font-medium mb-2">Credenciais de demonstração:</p>
               <p className="text-sm text-blue-700">Email: admin@ipda.com</p>
               <p className="text-sm text-blue-700">Senha: admin123</p>
+            </div>
+            
+            {/* Link para registro */}
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Não tem uma conta?{" "}
+                <Link to="/signup" className="text-blue-600 hover:underline font-medium">
+                  Registre-se aqui
+                </Link>
+              </p>
             </div>
           </CardContent>
         </Card>

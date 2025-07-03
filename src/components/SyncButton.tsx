@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Download, Upload, Settings, Save } from 'lucide-react';
+import { RefreshCw, Download, Upload, Settings, Save, Database } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +11,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 interface SyncButtonProps {
-  onSyncFromSheets: () => void;
-  onSyncToSheets: () => void;
+  onSyncFromDatabase: () => void;
+  onSyncToDatabase: () => void;
   onSaveToSystem?: () => void;
-  onOpenConfig: () => void;
+  onOpenConfig?: () => void;
   isLoading?: boolean;
   isSyncing?: boolean;
   lastSyncTime?: string;
@@ -23,15 +23,15 @@ interface SyncButtonProps {
 }
 
 export default function SyncButton({ 
-  onSyncFromSheets, 
-  onSyncToSheets, 
+  onSyncFromDatabase, 
+  onSyncToDatabase, 
   onSaveToSystem,
   onOpenConfig,
   isLoading = false,
   isSyncing = false,
   lastSyncTime,
   memberCount = 0,
-  hasConfig = false
+  hasConfig = true
 }: SyncButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   
@@ -54,7 +54,7 @@ export default function SyncButton({
     }
   };
 
-  if (!hasConfig) {
+  if (!hasConfig && onOpenConfig) {
     return (
       <Button 
         onClick={onOpenConfig}
@@ -63,7 +63,7 @@ export default function SyncButton({
         className="gap-2"
       >
         <Settings className="h-4 w-4" />
-        Configurar Google Sheets
+        Configurar Supabase
       </Button>
     );
   }
@@ -99,7 +99,7 @@ export default function SyncButton({
           
           <DropdownMenuItem 
             onClick={() => {
-              onSyncFromSheets();
+              onSyncFromDatabase();
               setIsOpen(false);
             }}
             disabled={isDisabled}
@@ -107,16 +107,16 @@ export default function SyncButton({
           >
             <Download className="h-4 w-4" />
             <div className="flex flex-col">
-              <span>Importar do Google Sheets</span>
+              <span>Importar do Supabase</span>
               <span className="text-xs text-muted-foreground">
-                Baixar dados da planilha
+                Baixar dados do banco de dados
               </span>
             </div>
           </DropdownMenuItem>
           
           <DropdownMenuItem 
             onClick={() => {
-              onSyncToSheets();
+              onSyncToDatabase();
               setIsOpen(false);
             }}
             disabled={isDisabled || memberCount === 0}
@@ -124,9 +124,9 @@ export default function SyncButton({
           >
             <Upload className="h-4 w-4" />
             <div className="flex flex-col">
-              <span>Exportar para Google Sheets</span>
+              <span>Exportar para Supabase</span>
               <span className="text-xs text-muted-foreground">
-                Enviar dados para a planilha
+                Enviar dados para o banco de dados
               </span>
             </div>
           </DropdownMenuItem>
@@ -150,23 +150,27 @@ export default function SyncButton({
             </DropdownMenuItem>
           )}
           
-          <DropdownMenuSeparator />
-          
-          <DropdownMenuItem 
-            onClick={() => {
-              onOpenConfig();
-              setIsOpen(false);
-            }}
-            className="gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            <div className="flex flex-col">
-              <span>Configurações</span>
-              <span className="text-xs text-muted-foreground">
-                Gerenciar integração
-              </span>
-            </div>
-          </DropdownMenuItem>
+          {onOpenConfig && (
+            <>
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem 
+                onClick={() => {
+                  onOpenConfig();
+                  setIsOpen(false);
+                }}
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                <div className="flex flex-col">
+                  <span>Configurações</span>
+                  <span className="text-xs text-muted-foreground">
+                    Gerenciar integração
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

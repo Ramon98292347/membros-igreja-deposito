@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMemberContext } from '@/context/MemberContext';
 import { toast } from '@/hooks/use-toast';
-import SpreadsheetConfig from '@/components/SpreadsheetConfig';
+import DatabaseConfig from '@/components/DatabaseConfig';
 import { 
   Save, 
   Settings as SettingsIcon, 
@@ -46,15 +46,12 @@ const Settings = () => {
     dataRetention: localStorage.getItem('dataRetention') || '1year'
   });
   
-  // Estados para configurações de planilhas
-  const [spreadsheetConfigs, setSpreadsheetConfigs] = useState({
-    members: JSON.parse(localStorage.getItem('sheets-config-members') || 'null'),
-    churches: JSON.parse(localStorage.getItem('sheets-config-churches') || 'null'),
-    inventory: JSON.parse(localStorage.getItem('sheets-config-inventory') || 'null')
-  });
+  // Estados para configurações do Supabase
+  const [databaseConfig, setDatabaseConfig] = useState(
+    JSON.parse(localStorage.getItem('supabase-config') || 'null')
+  );
   
-  const [showSpreadsheetConfig, setShowSpreadsheetConfig] = useState(false);
-  const [currentConfigType, setCurrentConfigType] = useState('');
+  const [showDatabaseConfig, setShowDatabaseConfig] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
 
   const handleInputChange = (field: string, value: string) => {
@@ -76,20 +73,19 @@ const Settings = () => {
     });
   };
 
-  // Função para configurar planilhas
-  const handleSpreadsheetConfig = (type: string) => {
-    setCurrentConfigType(type);
-    setShowSpreadsheetConfig(true);
+  // Função para configurar Supabase
+  const handleDatabaseConfig = () => {
+    setShowDatabaseConfig(true);
   };
 
-  // Função para salvar configuração de planilha
-  const handleSpreadsheetConfigSave = (config: { spreadsheetId: string; range: string; apiKey: string }) => {
-    localStorage.setItem(`sheets-config-${currentConfigType}`, JSON.stringify(config));
-    setSpreadsheetConfigs(prev => ({ ...prev, [currentConfigType]: config }));
-    setShowSpreadsheetConfig(false);
+  // Função para salvar configuração do Supabase
+  const handleDatabaseConfigSave = (config: { supabaseUrl: string; supabaseKey: string }) => {
+    localStorage.setItem('supabase-config', JSON.stringify(config));
+    setDatabaseConfig(config);
+    setShowDatabaseConfig(false);
     toast({
       title: "Sucesso",
-      description: `Configuração da planilha de ${currentConfigType} salva com sucesso`
+      description: "Configuração do Supabase salva com sucesso"
     });
   };
 
@@ -209,12 +205,12 @@ const Settings = () => {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
-              <FileSpreadsheet className="h-8 w-8 text-orange-600" />
+              <Database className="h-8 w-8 text-orange-600" />
               <div>
                 <p className="text-2xl font-bold">
-                  {Object.values(spreadsheetConfigs).filter(Boolean).length}
+                  {databaseConfig ? 1 : 0}
                 </p>
-                <p className="text-sm text-muted-foreground">Planilhas Configuradas</p>
+                <p className="text-sm text-muted-foreground">Banco de Dados Configurado</p>
               </div>
             </div>
           </CardContent>
@@ -240,9 +236,9 @@ const Settings = () => {
             <Church className="h-4 w-4" />
             Geral
           </TabsTrigger>
-          <TabsTrigger value="sheets" className="flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            Planilhas
+          <TabsTrigger value="database" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Banco de Dados
           </TabsTrigger>
           <TabsTrigger value="appearance" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
@@ -326,102 +322,49 @@ const Settings = () => {
           </form>
         </TabsContent>
 
-        {/* Aba Planilhas - Configurações do Google Sheets */}
-        <TabsContent value="sheets" className="space-y-6">
+        {/* Aba Banco de Dados - Configurações do Supabase */}
+        <TabsContent value="database" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <FileSpreadsheet className="h-5 w-5" />
-                <span>Configurações do Google Sheets</span>
+                <Database className="h-5 w-5" />
+                <span>Configurações do Supabase</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Configuração de Membros */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Planilha de Membros</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Conexão com Banco de Dados</h3>
                 <div className="flex gap-3">
                   <Button 
-                    onClick={() => handleSpreadsheetConfig('members')}
+                    onClick={handleDatabaseConfig}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    {spreadsheetConfigs.members ? 'Reconfigurar' : 'Configurar'} Planilha
+                    <Database className="h-4 w-4 mr-2" />
+                    {databaseConfig ? 'Reconfigurar' : 'Configurar'} Supabase
                   </Button>
                 </div>
-                {spreadsheetConfigs.members && (
+                {databaseConfig && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="font-medium text-green-800">Planilha Configurada</span>
+                      <span className="font-medium text-green-800">Banco de Dados Configurado</span>
                     </div>
                     <p className="text-sm text-green-700">
-                      ID: {spreadsheetConfigs.members.spreadsheetId?.substring(0, 20)}...
-                    </p>
-                    <p className="text-sm text-green-700">
-                      Intervalo: {spreadsheetConfigs.members.range}
+                      URL: {databaseConfig.supabaseUrl?.substring(0, 30)}...
                     </p>
                   </div>
                 )}
               </div>
 
-              <Separator />
-
-              {/* Configuração de Igrejas */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Planilha de Igrejas</h3>
-                <div className="flex gap-3">
-                  <Button 
-                    onClick={() => handleSpreadsheetConfig('churches')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    {spreadsheetConfigs.churches ? 'Reconfigurar' : 'Configurar'} Planilha
-                  </Button>
-                </div>
-                {spreadsheetConfigs.churches && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="font-medium text-green-800">Planilha Configurada</span>
-                    </div>
-                    <p className="text-sm text-green-700">
-                      ID: {spreadsheetConfigs.churches.spreadsheetId?.substring(0, 20)}...
-                    </p>
-                    <p className="text-sm text-green-700">
-                      Intervalo: {spreadsheetConfigs.churches.range}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Configuração de Inventário */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Planilha de Inventário</h3>
-                <div className="flex gap-3">
-                  <Button 
-                    onClick={() => handleSpreadsheetConfig('inventory')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    {spreadsheetConfigs.inventory ? 'Reconfigurar' : 'Configurar'} Planilha
-                  </Button>
-                </div>
-                {spreadsheetConfigs.inventory && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="font-medium text-green-800">Planilha Configurada</span>
-                    </div>
-                    <p className="text-sm text-green-700">
-                      ID: {spreadsheetConfigs.inventory.spreadsheetId?.substring(0, 20)}...
-                    </p>
-                    <p className="text-sm text-green-700">
-                      Intervalo: {spreadsheetConfigs.inventory.range}
-                    </p>
-                  </div>
-                )}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-2">Sobre o Supabase</h4>
+                <p className="text-sm text-blue-700">
+                  O Supabase é uma plataforma de banco de dados que oferece uma alternativa ao Firebase com código aberto.
+                  Ele fornece autenticação, armazenamento e banco de dados PostgreSQL em tempo real.
+                </p>
+                <p className="text-sm text-blue-700 mt-2">
+                  Para usar o Supabase, você precisa criar uma conta em <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="underline">supabase.com</a> e configurar um projeto.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -632,7 +575,7 @@ const Settings = () => {
                   <strong>Armazenamento:</strong> Local (Navegador)
                 </div>
                 <div>
-                  <strong>Planilhas configuradas:</strong> {Object.values(spreadsheetConfigs).filter(Boolean).length}
+                  <strong>Banco de dados configurado:</strong> {databaseConfig ? 'Sim' : 'Não'}
                 </div>
                 <div>
                   <strong>Tema ativo:</strong> {systemSettings.theme === 'dark' ? 'Escuro' : 'Claro'}
@@ -651,17 +594,16 @@ const Settings = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Modal de Configuração da Planilha */}
-      <Dialog open={showSpreadsheetConfig} onOpenChange={setShowSpreadsheetConfig}>
+      {/* Modal de Configuração do Supabase */}
+      <Dialog open={showDatabaseConfig} onOpenChange={setShowDatabaseConfig}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              Configurar Google Sheets - {currentConfigType === 'members' ? 'Membros' : 
-                                        currentConfigType === 'churches' ? 'Igrejas' : 'Inventário'}
+              Configurar Conexão com Supabase
             </DialogTitle>
           </DialogHeader>
-          <SpreadsheetConfig
-            onSave={handleSpreadsheetConfigSave}
+          <DatabaseConfig
+            onSave={handleDatabaseConfigSave}
           />
         </DialogContent>
       </Dialog>

@@ -10,6 +10,7 @@ import { InventoryProvider } from "@/context/InventoryContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 import Login from "@/pages/Login";
+import SignUp from "@/pages/SignUp";
 import Dashboard from "@/pages/Dashboard";
 import Members from "@/pages/Members";
 import MemberForm from "@/pages/MemberForm";
@@ -23,6 +24,10 @@ import InventoryMovement from "@/pages/InventoryMovement";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import PreachingLetter from "@/components/PreachingLetter";
+import ChurchReassignment from "@/components/ChurchReassignment";
+import WorkerForm from "@/components/WorkerForm";
+import ContractForm from "@/components/ContractForm";
 
 const App = () => (
   <QueryProvider>
@@ -35,8 +40,9 @@ const App = () => (
             <InventoryProvider>
               <BrowserRouter>
                 <Routes>
-                  {/* Rota de Login */}
+                  {/* Rotas de Autenticação */}
                   <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<SignUp />} />
                   
                   {/* Rotas Protegidas */}
                   <Route path="/*" element={
@@ -51,9 +57,13 @@ const App = () => (
                           <Route path="/ficha" element={<Members />} />
                           <Route path="/carteirinhas/:id" element={<MemberCard />} />
                           <Route path="/carteirinhas" element={<Members />} />
+                          <Route path="/carta-pregacao" element={<PreachingLetter />} />
+                          <Route path="/ficha-obreiros" element={<WorkerForm />} />
                           <Route path="/igrejas" element={<ChurchManagement />} />
                           <Route path="/igrejas/nova" element={<ChurchForm />} />
                           <Route path="/igrejas/editar/:id" element={<ChurchForm />} />
+                          <Route path="/remanejamento" element={<ChurchReassignment />} />
+                          <Route path="/contratos" element={<ContractForm />} />
                           <Route path="/deposito" element={<Inventory />} />
                           <Route path="/deposito/item/novo" element={<InventoryItemForm />} />
                           <Route path="/deposito/item/editar/:id" element={<InventoryItemForm />} />

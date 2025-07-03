@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, UserPlus, Grid3X3, List, Users, UserCheck, UserX, Settings, Save, FileSpreadsheet, CheckCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Search, UserPlus, Grid3X3, List, Users, UserCheck, UserX, Settings, Save, Database, CheckCircle } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,41 +11,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MemberTabs from '@/components/MemberTabs';
 import SyncButton from '@/components/SyncButton';
-import SpreadsheetConfig from '@/components/SpreadsheetConfig';
+import DatabaseConfig from '@/components/DatabaseConfig';
 import MemberCarousel from '@/components/MemberCarousel';
 import MemberRecordCards from '@/components/MemberRecordCards';
 import MemberCardCarousel from '@/components/MemberCardCarousel';
-import { useGoogleSheetsMembers } from '@/hooks/useGoogleSheetsMembers';
 import { useMemberContext } from '@/context/MemberContext';
 import { toast } from '@/hooks/use-toast';
+import { supabaseService } from '@/services/supabaseService';
 
 const Members = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSpreadsheetConfig, setShowSpreadsheetConfig] = useState(false);
+  const [showDatabaseConfig, setShowDatabaseConfig] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-  const [sheetConfig, setSheetConfig] = useState<any>(null);
+  const [databaseConfig, setDatabaseConfig] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list');
   const [importedMembers, setImportedMembers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
-  const { members: contextMembers } = useMemberContext();
-  const {
-    members,
-    isLoading,
-    isSyncing,
-    error,
-    syncFromSheets,
-    syncToSheets,
-    searchMembers,
-    loadFromLocalStorage,
-    saveToLocalSystem
-  } = useGoogleSheetsMembers();
+  const { members, searchMembers, addMember, updateMember, deleteMember, importFromSheets } = useMemberContext();
 
   // Carregar configuração salva e dados locais ao inicializar
   useEffect(() => {
-    const savedConfig = localStorage.getItem('sheets-config');
+    const savedConfig = localStorage.getItem('supabase-config');
     if (savedConfig) {
       try {
-        setSheetConfig(JSON.parse(savedConfig));
+        setDatabaseConfig(JSON.parse(savedConfig));
       } catch (error) {
         console.error('Erro ao carregar configuração:', error);
       }
@@ -55,27 +47,21 @@ const Members = () => {
     if (savedSyncTime) {
       setLastSyncTime(savedSyncTime);
     }
-    
-    // Carregar dados do backup local
-    loadFromLocalStorage();
-  }, [loadFromLocalStorage]);
+  }, []);
 
-  const handleSyncFromSheets = async () => {
-    if (!sheetConfig) {
+  const handleSyncFromDatabase = async () => {
+    if (!supabaseService.isInitialized()) {
       toast({
         title: "Erro",
-        description: "Configure primeiro a planilha do Google Sheets",
+        description: "Configure primeiro a conexão com o Supabase",
         variant: "destructive"
       });
       return;
     }
 
     try {
-      const membersData = await syncFromSheets({
-        spreadsheetId: sheetConfig.spreadsheetId,
-        range: sheetConfig.range,
-        apiKey: sheetConfig.apiKey
-      });
+      setIsSyncing(true);
+      const membersData = await supabaseService.getMembers();
       
       setImportedMembers(membersData);
       const now = new Date().toISOString();
@@ -87,110 +73,99 @@ const Members = () => {
         description: `${membersData.length} membros importados com sucesso!`
       });
     } catch (error) {
+      console.error('Erro ao sincronizar dados:', error);
       toast({
         title: "Erro",
-        description: "Erro ao sincronizar dados",
+        description: "Erro ao sincronizar dados do Supabase",
         variant: "destructive"
       });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  const handleSyncToSheets = async () => {
-    try {
-      const membersToSync = members.length > 0 ? members : contextMembers;
-      await syncToSheets(membersToSync, sheetConfig?.spreadsheetId ? sheetConfig : undefined);
-      const now = new Date().toISOString();
-      setLastSyncTime(now);
-      localStorage.setItem('last-sync-time', now);
-      toast({
-        title: "Sucesso",
-        description: "Dados exportados para o Google Sheets"
-      });
-    } catch (error) {
+  const handleSyncToDatabase = async () => {
+    if (!supabaseService.isInitialized()) {
       toast({
         title: "Erro",
-        description: "Falha ao exportar dados",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleSaveToSystem = async () => {
-    try {
-      await saveToLocalSystem();
-    } catch (error) {
-      // O erro já é tratado dentro da função saveToLocalSystem
-    }
-  };
-
-  const saveImportedMembers = () => {
-    if (importedMembers.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Não há dados importados para salvar",
+        description: "Configure primeiro a conexão com o Supabase",
         variant: "destructive"
       });
       return;
     }
 
     try {
-      // Primeiro, limpar todos os dados existentes
-      localStorage.removeItem('church-members');
-      localStorage.removeItem('sheets-members');
+      setIsSyncing(true);
+      // Limpar membros existentes no Supabase
+      await supabaseService.clearMembers();
       
-      // Depois, salvar os novos dados importados
-      localStorage.setItem('church-members', JSON.stringify(importedMembers));
+      // Importar todos os membros atuais
+      await supabaseService.importMembers(members);
+      
+      const now = new Date().toISOString();
+      setLastSyncTime(now);
+      localStorage.setItem('last-sync-time', now);
       
       toast({
         title: "Sucesso",
-        description: `Dados antigos removidos e ${importedMembers.length} novos membros salvos com sucesso!`
+        description: "Dados exportados para o Supabase"
       });
-
-      setImportedMembers([]);
-      
-      // Recarregar a página para mostrar os novos dados
-      window.location.reload();
-    } catch (err) {
+    } catch (error) {
+      console.error('Erro ao exportar dados:', error);
       toast({
         title: "Erro",
-        description: "Erro ao salvar os membros importados",
+        description: "Falha ao exportar dados para o Supabase",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSaveToSystem = async () => {
+    try {
+      if (importedMembers.length === 0) {
+        toast({
+          title: "Aviso",
+          description: "Não há dados importados para salvar",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      await importFromSheets(importedMembers);
+      
+      toast({
+        title: "Sucesso",
+        description: `${importedMembers.length} membros salvos no sistema com sucesso!`
+      });
+      
+      setImportedMembers([]);
+    } catch (error) {
+      console.error('Erro ao salvar no sistema:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar dados no sistema",
         variant: "destructive"
       });
     }
   };
 
-  const handleSpreadsheetConfig = (config: any) => {
-    setSheetConfig(config);
-    setShowSpreadsheetConfig(false);
+  const saveImportedMembers = () => {
+    handleSaveToSystem();
+  };
+
+  const handleDatabaseConfig = (config: any) => {
+    setDatabaseConfig(config);
+    setShowDatabaseConfig(false);
+    localStorage.setItem('supabase-config', JSON.stringify(config));
     toast({
       title: "Sucesso",
-      description: "Configuração do Google Sheets salva com sucesso",
+      description: "Configuração do Supabase salva com sucesso",
     });
   };
 
-  const handleTestConnection = async (config: any): Promise<boolean> => {
-    try {
-      // Teste básico de conexão
-      await syncFromSheets(config);
-      return true;
-    } catch (error) {
-      console.error('Erro no teste de conexão:', error);
-      return false;
-    }
-  };
-
-  // Combinar dados do Google Sheets com dados do contexto
-  const allMembers = [...contextMembers, ...members];
-  // Remover duplicatas baseado no CPF
-  const uniqueMembers = allMembers.reduce((acc, current) => {
-    const existingIndex = acc.findIndex(member => member.cpf && current.cpf && member.cpf === current.cpf);
-    if (existingIndex === -1) {
-      acc.push(current);
-    }
-    return acc;
-  }, [] as Member[]);
-  
-  const displayMembers = uniqueMembers;
+  const displayMembers = members;
   const filteredMembers = displayMembers.filter(member => 
     member.nomeCompleto.toLowerCase().includes(searchQuery.toLowerCase()) ||
     member.cidade.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -223,22 +198,16 @@ const Members = () => {
         <div>
           <h1 className="text-3xl font-bold">Membros</h1>
           <p className="text-muted-foreground">
-            Gerencie os membros da sua igreja com integração ao Google Sheets
+            Gerencie os membros da sua igreja com integração ao Supabase
           </p>
         </div>
-        <Button onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfLK72gpQMWE8AzuccdtxsFnvJmKTT05ic7nTC_K5kczJ_27Q/viewform?usp=sf_link', '_blank')}>
+        <Button onClick={() => navigate('/membros/novo')}>
           <Plus className="h-4 w-4 mr-2" />
           Novo Membro
         </Button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">
-            <strong>Erro:</strong> {error}
-          </p>
-        </div>
-      )}
+
 
       {/* Dashboard Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -314,7 +283,7 @@ const Members = () => {
                   Lista de Membros ({filteredMembers.length})
                   {members.length > 0 && (
                     <Badge variant="outline" className="ml-2">
-                      Google Sheets
+                      Supabase
                     </Badge>
                   )}
                 </CardTitle>
@@ -375,14 +344,14 @@ const Members = () => {
                           <div className="text-muted-foreground">
                             {searchQuery ? 'Nenhum membro encontrado' : 'Nenhum membro cadastrado'}
                           </div>
-                          {!sheetConfig && (
+                          {!databaseConfig && (
                             <div className="mt-2">
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => setShowSpreadsheetConfig(true)}
+                                onClick={() => setShowDatabaseConfig(true)}
                               >
-                                Configurar Google Sheets
+                                Configurar Supabase
                               </Button>
                             </div>
                           )}
@@ -415,7 +384,7 @@ const Members = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfLK72gpQMWE8AzuccdtxsFnvJmKTT05ic7nTC_K5kczJ_27Q/viewform?usp=sf_link', '_blank')}
+                                onClick={() => navigate(`/membros/editar/${member.id}`)}
                               >
                                 Editar
                               </Button>
@@ -452,14 +421,14 @@ const Members = () => {
                     <div className="text-muted-foreground">
                       {searchQuery ? 'Nenhum membro encontrado' : 'Nenhum membro cadastrado'}
                     </div>
-                    {!sheetConfig && (
+                    {!databaseConfig && (
                       <div className="mt-2">
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => setShowSpreadsheetConfig(true)}
+                          onClick={() => setShowDatabaseConfig(true)}
                         >
-                          Configurar Google Sheets
+                          Configurar Supabase
                         </Button>
                       </div>
                     )}
@@ -492,7 +461,7 @@ const Members = () => {
                 Acesse o formulário de carta de pregação
               </p>
               <Button 
-                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSdSVw-IaYhPO6hEYgPuSD0ZYQNwYdDoeszqF-Dgk7ZA4OunRg/viewform?usp=sf_link', '_blank')}
+                onClick={() => navigate('/carta-pregacao')}
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 Abrir Formulário de Carta de Pregação
@@ -513,7 +482,7 @@ const Members = () => {
                 Acesse o formulário de ficha de obreiros
               </p>
               <Button 
-                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSexTcq1mRyGVj1JPSMqaj1zfftQ6VUMgMhuToRH8FYU-maq5g/viewform?usp=sf_link', '_blank')}
+                onClick={() => navigate('/ficha-obreiros')}
                 className="bg-orange-600 hover:bg-orange-700"
               >
                 Abrir Formulário de Ficha de Obreiros
@@ -528,34 +497,31 @@ const Members = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Configurações do Google Sheets
+              Configurações do Supabase
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Seção de Configuração da Planilha */}
+            {/* Seção de Configuração do Banco de Dados */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800">Configuração da Planilha</h3>
+              <h3 className="text-lg font-semibold text-gray-800">Configuração do Banco de Dados</h3>
               <div className="flex gap-3">
                  <Button 
-                   onClick={() => setShowSpreadsheetConfig(true)}
+                   onClick={() => setShowDatabaseConfig(true)}
                    className="bg-blue-600 hover:bg-blue-700 text-white"
                    size="lg"
                  >
-                   <FileSpreadsheet className="h-4 w-4 mr-2" />
-                   Cadastrar Planilha
+                   <Database className="h-4 w-4 mr-2" />
+                   Configurar Supabase
                  </Button>
                </div>
-              {sheetConfig && (
+              {databaseConfig && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="font-medium text-green-800">Planilha Configurada</span>
+                    <span className="font-medium text-green-800">Supabase Configurado</span>
                   </div>
                   <p className="text-sm text-green-700">
-                    Planilha ID: {sheetConfig.spreadsheetId?.substring(0, 20)}...
-                  </p>
-                  <p className="text-sm text-green-700">
-                    Aba: {sheetConfig.sheetName}
+                    URL: {databaseConfig.supabaseUrl?.substring(0, 20)}...
                   </p>
                 </div>
               )}
@@ -564,15 +530,15 @@ const Members = () => {
             <div className="border-t pt-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Sincronização de Dados</h3>
               <SyncButton
-                onSyncFromSheets={handleSyncFromSheets}
-                onSyncToSheets={handleSyncToSheets}
+                onSyncFromDatabase={handleSyncFromDatabase}
+                onSyncToDatabase={handleSyncToDatabase}
                 onSaveToSystem={handleSaveToSystem}
-                onOpenConfig={() => setShowSpreadsheetConfig(true)}
+                onOpenConfig={() => setShowDatabaseConfig(true)}
                 isLoading={isLoading}
                 isSyncing={isSyncing}
                 lastSyncTime={lastSyncTime || undefined}
                 memberCount={displayMembers.length}
-                hasConfig={!!sheetConfig}
+                hasConfig={!!databaseConfig}
               />
               {importedMembers.length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
@@ -596,15 +562,14 @@ const Members = () => {
       </TabsContent>
     </Tabs>
 
-      {/* Dialog de Configuração do Google Sheets */}
-      <Dialog open={showSpreadsheetConfig} onOpenChange={setShowSpreadsheetConfig}>
+      {/* Dialog de Configuração do Supabase */}
+      <Dialog open={showDatabaseConfig} onOpenChange={setShowDatabaseConfig}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Configuração do Google Sheets</DialogTitle>
+            <DialogTitle>Configuração do Supabase</DialogTitle>
           </DialogHeader>
-          <SpreadsheetConfig
-            onSave={handleSpreadsheetConfig}
-            onTest={handleTestConnection}
+          <DatabaseConfig
+            onSave={handleDatabaseConfig}
           />
         </DialogContent>
       </Dialog>

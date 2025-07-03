@@ -14,7 +14,7 @@ import { useMember, useCreateMember, useUpdateMember } from '@/hooks/useMembers'
 import { memberSchema, MemberFormData } from '@/schemas/memberSchema';
 import { toast } from '@/hooks/use-toast';
 import { Upload, Loader2, ArrowLeft } from 'lucide-react';
-import { applyCpfMask, applyCepMask, applyPhoneMask } from '@/lib/masks';
+import { applyCpfMask, applyCepMask, applyPhoneMask, fetchAddressByCep, calculateAge, BRAZILIAN_STATES } from '../lib/masks';
 
 const MemberForm = () => {
   const navigate = useNavigate();
@@ -35,21 +35,27 @@ const MemberForm = () => {
   } = useForm<MemberFormData>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
-      nome: '',
-      cpf: '',
-      rg: '',
-      dataNascimento: '',
-      telefone: '',
+      nomeCompleto: '',
+      imagemLink: '',
       email: '',
+      telefone: '',
       endereco: '',
       bairro: '',
+      numeroCasa: '',
       cidade: '',
+      estado: '',
       cep: '',
+      cpf: '',
+      rg: '',
+      cidadeNascimento: '',
+      estadoCidadeNascimento: '',
+      dataNascimento: '',
+      idade: undefined,
       estadoCivil: 'Solteiro(a)',
       profissao: '',
-      escolaridade: 'Médio Completo',
-      batizado: 'Não',
+      temFilho: 'Não',
       dataBatismo: '',
+      funcaoMinisterial: 'Membro',
       igreja: '',
       cargo: '',
       observacoes: '',
@@ -61,23 +67,29 @@ const MemberForm = () => {
   useEffect(() => {
     if (isEditing && member) {
       reset({
-        nome: member.nome || '',
-        cpf: member.cpf || '',
-        rg: member.rg || '',
-        dataNascimento: member.dataNascimento || '',
-        telefone: member.telefone || '',
+        nomeCompleto: member.nomeCompleto || '',
+        imagemLink: member.foto || '',
         email: member.email || '',
+        telefone: member.telefone || '',
         endereco: member.endereco || '',
         bairro: member.bairro || '',
+        numeroCasa: member.numeroCasa || '',
         cidade: member.cidade || '',
+        estado: member.estado || '',
         cep: member.cep || '',
+        cpf: member.cpf || '',
+        rg: member.rg || '',
+        cidadeNascimento: member.cidadeNascimento || '',
+        estadoCidadeNascimento: member.estadoCidadeNascimento || '',
+        dataNascimento: member.dataNascimento || '',
+        idade: member.idade || undefined,
         estadoCivil: member.estadoCivil || 'Solteiro(a)',
         profissao: member.profissao || '',
-        escolaridade: member.escolaridade || 'Médio Completo',
-        batizado: member.batizado || 'Não',
+        temFilho: 'Não', // Campo novo, valor padrão
         dataBatismo: member.dataBatismo || '',
-        igreja: member.igreja || '',
-        cargo: member.cargo || '',
+        funcaoMinisterial: member.funcaoMinisterial || 'Membro',
+        igreja: '', // Campo legado
+        cargo: member.funcaoMinisterial || '',
         observacoes: member.observacoes || '',
         ativo: member.ativo ?? true
       });
@@ -109,19 +121,42 @@ const MemberForm = () => {
     }
   };
   
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = applyCpfMask(e.target.value);
-    setValue('cpf', masked);
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const maskedValue = applyCepMask(e.target.value);
+    setValue('cep', maskedValue);
+    
+    // Auto-fetch address when CEP is complete
+    const cleanCep = maskedValue.replace(/\D/g, '');
+    if (cleanCep.length === 8) {
+      const addressData = await fetchAddressByCep(cleanCep);
+      if (addressData) {
+        setValue('endereco', addressData.endereco || '');
+        setValue('bairro', addressData.bairro || '');
+        setValue('cidade', addressData.cidade || '');
+        setValue('estado', addressData.estado || '');
+      }
+    }
   };
-  
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = applyCepMask(e.target.value);
-    setValue('cep', masked);
-  };
-  
+
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = applyPhoneMask(e.target.value);
-    setValue('telefone', masked);
+    const maskedValue = applyPhoneMask(e.target.value);
+    setValue('telefone', maskedValue);
+  };
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const maskedValue = applyCpfMask(e.target.value);
+    setValue('cpf', maskedValue);
+  };
+
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const birthDate = e.target.value;
+    setValue('dataNascimento', birthDate);
+    
+    // Auto-calculate age
+    if (birthDate) {
+      const age = calculateAge(birthDate);
+      setValue('idade', age);
+    }
   };
   
   if (memberLoading) {
@@ -168,18 +203,170 @@ const MemberForm = () => {
             </CardHeader>
             <CardContent>
               <ResponsiveGrid cols={{ default: 1, sm: 2 }} gap="md">
-                <div className="space-y-2">
-                  <Label htmlFor="nome">Nome Completo *</Label>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="nomeCompleto">Nome Completo *</Label>
                   <Input
-                    id="nome"
-                    {...register('nome')}
-                    className={errors.nome ? 'border-red-500' : ''}
+                    id="nomeCompleto"
+                    {...register('nomeCompleto')}
+                    className={errors.nomeCompleto ? 'border-red-500' : ''}
                   />
-                  {errors.nome && (
-                    <p className="text-sm text-red-500">{errors.nome.message}</p>
+                  {errors.nomeCompleto && (
+                    <p className="text-sm text-red-500">{errors.nomeCompleto.message}</p>
                   )}
                 </div>
                 
+                <div className="space-y-2">
+                  <Label htmlFor="imagemLink">Link da Imagem</Label>
+                  <Input
+                    id="imagemLink"
+                    {...register('imagemLink')}
+                    placeholder="https://exemplo.com/imagem.jpg"
+                    className={errors.imagemLink ? 'border-red-500' : ''}
+                  />
+                  {errors.imagemLink && (
+                    <p className="text-sm text-red-500">{errors.imagemLink.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="imagemArquivo">Upload de Imagem</Label>
+                  <Input
+                    id="imagemArquivo"
+                    type="file"
+                    accept="image/*"
+                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    {...register('email')}
+                    className={errors.email ? 'border-red-500' : ''}
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-red-500">{errors.email.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="telefone">Telefone *</Label>
+                  <Input
+                    id="telefone"
+                    {...register('telefone')}
+                    onChange={handlePhoneChange}
+                    placeholder="(00) 00000-0000"
+                    className={errors.telefone ? 'border-red-500' : ''}
+                  />
+                  {errors.telefone && (
+                    <p className="text-sm text-red-500">{errors.telefone.message}</p>
+                  )}
+                </div>
+              </ResponsiveGrid>
+            </CardContent>
+          </Card>
+          
+          {/* Endereço */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Endereço</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveGrid cols={{ default: 1, sm: 2, lg: 3 }} gap="md">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="endereco">Endereço *</Label>
+                  <Input
+                    id="endereco"
+                    {...register('endereco')}
+                    className={errors.endereco ? 'border-red-500' : ''}
+                  />
+                  {errors.endereco && (
+                    <p className="text-sm text-red-500">{errors.endereco.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="numeroCasa">Número *</Label>
+                  <Input
+                    id="numeroCasa"
+                    {...register('numeroCasa')}
+                    className={errors.numeroCasa ? 'border-red-500' : ''}
+                  />
+                  {errors.numeroCasa && (
+                    <p className="text-sm text-red-500">{errors.numeroCasa.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="bairro">Bairro *</Label>
+                  <Input
+                    id="bairro"
+                    {...register('bairro')}
+                    className={errors.bairro ? 'border-red-500' : ''}
+                  />
+                  {errors.bairro && (
+                    <p className="text-sm text-red-500">{errors.bairro.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="cidade">Cidade *</Label>
+                  <Input
+                    id="cidade"
+                    {...register('cidade')}
+                    className={errors.cidade ? 'border-red-500' : ''}
+                  />
+                  {errors.cidade && (
+                    <p className="text-sm text-red-500">{errors.cidade.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="estado">Estado *</Label>
+                  <Select onValueChange={(value) => setValue('estado', value)} value={watch('estado')}>
+                    <SelectTrigger className={errors.estado ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Selecione o estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRAZILIAN_STATES.map((state) => (
+                        <SelectItem key={state.value} value={state.value}>
+                          {state.value} - {state.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.estado && (
+                    <p className="text-sm text-red-500">{errors.estado.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="cep">CEP *</Label>
+                  <Input
+                    id="cep"
+                    {...register('cep')}
+                    onChange={handleCepChange}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    className={errors.cep ? 'border-red-500' : ''}
+                  />
+                  {errors.cep && (
+                    <p className="text-sm text-red-500">{errors.cep.message}</p>
+                  )}
+                </div>
+              </ResponsiveGrid>
+            </CardContent>
+          </Card>
+          
+          {/* Documentos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveGrid cols={{ default: 1, sm: 2 }} gap="md">
                 <div className="space-y-2">
                   <Label htmlFor="cpf">CPF *</Label>
                   <Input
@@ -187,6 +374,7 @@ const MemberForm = () => {
                     {...register('cpf')}
                     onChange={handleCpfChange}
                     placeholder="000.000.000-00"
+                    maxLength={14}
                     className={errors.cpf ? 'border-red-500' : ''}
                   />
                   {errors.cpf && (
@@ -205,6 +393,47 @@ const MemberForm = () => {
                     <p className="text-sm text-red-500">{errors.rg.message}</p>
                   )}
                 </div>
+              </ResponsiveGrid>
+            </CardContent>
+          </Card>
+          
+          {/* Dados de Nascimento */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Dados de Nascimento</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveGrid cols={{ default: 1, sm: 2, lg: 3 }} gap="md">
+                <div className="space-y-2">
+                  <Label htmlFor="cidadeNascimento">Cidade de Nascimento *</Label>
+                  <Input
+                    id="cidadeNascimento"
+                    {...register('cidadeNascimento')}
+                    className={errors.cidadeNascimento ? 'border-red-500' : ''}
+                  />
+                  {errors.cidadeNascimento && (
+                    <p className="text-sm text-red-500">{errors.cidadeNascimento.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="estadoCidadeNascimento">Estado da Cidade *</Label>
+                  <Select onValueChange={(value) => setValue('estadoCidadeNascimento', value)} value={watch('estadoCidadeNascimento')}>
+                    <SelectTrigger className={errors.estadoCidadeNascimento ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Selecione o estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRAZILIAN_STATES.map((state) => (
+                        <SelectItem key={state.value} value={state.value}>
+                          {state.value} - {state.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.estadoCidadeNascimento && (
+                    <p className="text-sm text-red-500">{errors.estadoCidadeNascimento.message}</p>
+                  )}
+                </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="dataNascimento">Data de Nascimento *</Label>
@@ -212,6 +441,7 @@ const MemberForm = () => {
                     id="dataNascimento"
                     type="date"
                     {...register('dataNascimento')}
+                    onChange={handleBirthDateChange}
                     className={errors.dataNascimento ? 'border-red-500' : ''}
                   />
                   {errors.dataNascimento && (
@@ -220,32 +450,29 @@ const MemberForm = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="telefone">Telefone *</Label>
+                  <Label htmlFor="idade">Idade (calculada automaticamente)</Label>
                   <Input
-                    id="telefone"
-                    {...register('telefone')}
-                    onChange={handlePhoneChange}
-                    placeholder="(00) 00000-0000"
-                    className={errors.telefone ? 'border-red-500' : ''}
+                    id="idade"
+                    type="number"
+                    {...register('idade', { valueAsNumber: true })}
+                    readOnly
+                    className={`bg-gray-100 ${errors.idade ? 'border-red-500' : ''}`}
                   />
-                  {errors.telefone && (
-                    <p className="text-sm text-red-500">{errors.telefone.message}</p>
+                  {errors.idade && (
+                    <p className="text-sm text-red-500">{errors.idade.message}</p>
                   )}
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...register('email')}
-                    className={errors.email ? 'border-red-500' : ''}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-red-500">{errors.email.message}</p>
-                  )}
-                </div>
-                
+              </ResponsiveGrid>
+            </CardContent>
+          </Card>
+          
+          {/* Dados Pessoais */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Informações Pessoais</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveGrid cols={{ default: 1, sm: 2 }} gap="md">
                 <div className="space-y-2">
                   <Label htmlFor="estadoCivil">Estado Civil *</Label>
                   <Select onValueChange={(value) => setValue('estadoCivil', value as any)}>
@@ -276,81 +503,11 @@ const MemberForm = () => {
                     <p className="text-sm text-red-500">{errors.profissao.message}</p>
                   )}
                 </div>
-              </ResponsiveGrid>
-            </CardContent>
-          </Card>
-          
-          {/* Endereço */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Endereço</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveGrid cols={{ default: 1, sm: 2 }} gap="md">
-                <div className="space-y-2">
-                  <Label htmlFor="cep">CEP *</Label>
-                  <Input
-                    id="cep"
-                    {...register('cep')}
-                    onChange={handleCepChange}
-                    placeholder="00000-000"
-                    className={errors.cep ? 'border-red-500' : ''}
-                  />
-                  {errors.cep && (
-                    <p className="text-sm text-red-500">{errors.cep.message}</p>
-                  )}
-                </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="endereco">Endereço *</Label>
-                  <Input
-                    id="endereco"
-                    {...register('endereco')}
-                    className={errors.endereco ? 'border-red-500' : ''}
-                  />
-                  {errors.endereco && (
-                    <p className="text-sm text-red-500">{errors.endereco.message}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="bairro">Bairro *</Label>
-                  <Input
-                    id="bairro"
-                    {...register('bairro')}
-                    className={errors.bairro ? 'border-red-500' : ''}
-                  />
-                  {errors.bairro && (
-                    <p className="text-sm text-red-500">{errors.bairro.message}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="cidade">Cidade *</Label>
-                  <Input
-                    id="cidade"
-                    {...register('cidade')}
-                    className={errors.cidade ? 'border-red-500' : ''}
-                  />
-                  {errors.cidade && (
-                    <p className="text-sm text-red-500">{errors.cidade.message}</p>
-                  )}
-                </div>
-              </ResponsiveGrid>
-            </CardContent>
-          </Card>
-          
-          {/* Informações Eclesiásticas */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Informações Eclesiásticas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveGrid cols={{ default: 1, sm: 2 }} gap="md">
-                <div className="space-y-2">
-                  <Label htmlFor="batizado">Batizado *</Label>
-                  <Select onValueChange={(value) => setValue('batizado', value as any)}>
-                    <SelectTrigger className={errors.batizado ? 'border-red-500' : ''}>
+                  <Label htmlFor="temFilho">Tem Filho? *</Label>
+                  <Select onValueChange={(value) => setValue('temFilho', value as any)}>
+                    <SelectTrigger className={errors.temFilho ? 'border-red-500' : ''}>
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -358,65 +515,67 @@ const MemberForm = () => {
                       <SelectItem value="Não">Não</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.batizado && (
-                    <p className="text-sm text-red-500">{errors.batizado.message}</p>
+                  {errors.temFilho && (
+                    <p className="text-sm text-red-500">{errors.temFilho.message}</p>
                   )}
-                </div>
-                
-                {watch('batizado') === 'Sim' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="dataBatismo">Data do Batismo</Label>
-                    <Input
-                      id="dataBatismo"
-                      type="date"
-                      {...register('dataBatismo')}
-                      className={errors.dataBatismo ? 'border-red-500' : ''}
-                    />
-                    {errors.dataBatismo && (
-                      <p className="text-sm text-red-500">{errors.dataBatismo.message}</p>
-                    )}
-                  </div>
-                )}
-                
-                <div className="space-y-2">
-                  <Label htmlFor="igreja">Igreja *</Label>
-                  <Input
-                    id="igreja"
-                    {...register('igreja')}
-                    className={errors.igreja ? 'border-red-500' : ''}
-                  />
-                  {errors.igreja && (
-                    <p className="text-sm text-red-500">{errors.igreja.message}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="cargo">Cargo/Função</Label>
-                  <Input
-                    id="cargo"
-                    {...register('cargo')}
-                    placeholder="Ex: Pastor, Diácono, Membro..."
-                  />
                 </div>
               </ResponsiveGrid>
             </CardContent>
           </Card>
           
-          {/* Observações */}
+          {/* Dados Religiosos */}
           <Card>
             <CardHeader>
-              <CardTitle>Observações</CardTitle>
+              <CardTitle>Dados Religiosos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações Adicionais</Label>
-                <textarea
-                  id="observacoes"
-                  {...register('observacoes')}
-                  className="w-full min-h-[100px] px-3 py-2 border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 rounded-md"
-                  placeholder="Informações adicionais sobre o membro..."
-                />
-              </div>
+              <ResponsiveGrid cols={{ default: 1, sm: 2 }} gap="md">
+                <div className="space-y-2">
+                  <Label htmlFor="dataBatismo">Data de Batismo</Label>
+                  <Input
+                    id="dataBatismo"
+                    type="date"
+                    {...register('dataBatismo')}
+                    className={errors.dataBatismo ? 'border-red-500' : ''}
+                  />
+                  {errors.dataBatismo && (
+                    <p className="text-sm text-red-500">{errors.dataBatismo.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="funcaoMinisterial">Função Ministerial *</Label>
+                  <Select onValueChange={(value) => setValue('funcaoMinisterial', value as any)}>
+                    <SelectTrigger className={errors.funcaoMinisterial ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Selecione a função" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Pastor">Pastor</SelectItem>
+                      <SelectItem value="Presbítero">Presbítero</SelectItem>
+                      <SelectItem value="Diácono">Diácono</SelectItem>
+                      <SelectItem value="Obreiro">Obreiro</SelectItem>
+                      <SelectItem value="Membro">Membro</SelectItem>
+                      <SelectItem value="Missionário">Missionário</SelectItem>
+                      <SelectItem value="Evangelista">Evangelista</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.funcaoMinisterial && (
+                    <p className="text-sm text-red-500">{errors.funcaoMinisterial.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="observacoes">Observações</Label>
+                  <Input
+                    id="observacoes"
+                    {...register('observacoes')}
+                    className={errors.observacoes ? 'border-red-500' : ''}
+                  />
+                  {errors.observacoes && (
+                    <p className="text-sm text-red-500">{errors.observacoes.message}</p>
+                  )}
+                </div>
+              </ResponsiveGrid>
             </CardContent>
           </Card>
           

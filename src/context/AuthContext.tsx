@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { googleSheetsService } from '@/services/googleSheetsService';
+import { supabaseService } from '@/services/supabaseService';
 import { Member } from '@/types/member';
 
 interface User {
@@ -33,45 +33,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
-
-  // Verificar se há usuário logado no localStorage
+  // Verificar se há usuário logado no Supabase
   useEffect(() => {
-    const savedUser = localStorage.getItem('auth_user');
-    const savedMembers = localStorage.getItem('members_data');
+    const checkUser = async () => {
+      try {
+        const currentUser = await supabaseService.getCurrentUser();
+        
+        if (currentUser) {
+          const userData: User = {
+            id: currentUser.id,
+            email: currentUser.email || '',
+            name: currentUser.user_metadata?.name || 'Usuário'
+          };
+          
+          setUser(userData);
+          
+          // Carregar dados de membros
+          await syncData();
+        }
+      } catch (error) {
+        console.error('Erro ao verificar usuário:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    
-    if (savedMembers) {
-      setMembersData(JSON.parse(savedMembers));
-    }
-    
-    setIsLoading(false);
+    checkUser();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
     try {
-      // Simulação de autenticação - você pode integrar com seu sistema de auth
-      // Por enquanto, vamos aceitar credenciais específicas
-      if (email === 'admin@ipda.com' && password === 'admin123') {
+      const data = await supabaseService.signIn(email, password);
+      
+      if (data.user) {
         const userData: User = {
-          id: '1',
-          email: email,
-          name: 'Administrador IPDA'
+          id: data.user.id,
+          email: data.user.email || '',
+          name: data.user.user_metadata?.name || 'Usuário'
         };
         
         setUser(userData);
-        localStorage.setItem('auth_user', JSON.stringify(userData));
         
         // Sincronizar dados após login
         await syncData();
         
         toast({
           title: 'Login realizado com sucesso!',
-          description: 'Dados sincronizados com Google Sheets.',
+          description: 'Dados sincronizados com Supabase.',
         });
         
         return true;
@@ -83,11 +93,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
         return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro no login:', error);
+      
+      // Mensagem de erro mais detalhada
+      let errorMessage = 'Ocorreu um erro durante o login.';
+      
+      if (error.message) {
+        // Verificar mensagens específicas de erro
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = 'Credenciais inválidas. Verifique seu email e senha.';
+        } else if (error.message.includes('Email e senha são obrigatórios')) {
+          errorMessage = 'Email e senha são obrigatórios.';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e as configurações do Supabase.';
+        } else {
+          // Incluir a mensagem de erro original para ajudar na depuração
+          errorMessage = `Erro: ${error.message}`;
+        }
+      }
+      
       toast({
         title: 'Erro no login',
-        description: 'Ocorreu um erro durante o login.',
+        description: errorMessage,
         variant: 'destructive',
       });
       return false;
@@ -96,16 +124,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setMembersData([]);
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('members_data');
-    
-    toast({
-      title: 'Logout realizado',
-      description: 'Você foi desconectado do sistema.',
-    });
+  const logout = async () => {
+    try {
+      await supabaseService.signOut();
+      setUser(null);
+      setMembersData([]);
+      
+      toast({
+        title: 'Logout realizado',
+        description: 'Você foi desconectado do sistema.',
+      });
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      toast({
+        title: 'Erro no logout',
+        description: 'Ocorreu um erro ao desconectar.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const syncData = async () => {
@@ -114,25 +150,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsSyncing(true);
     
     try {
-      console.log('🔄 Iniciando sincronização com Google Sheets...');
+      console.log('🔄 Iniciando sincronização com Supabase...');
       
       // Sincronizar membros
-      const members = await googleSheetsService.readMembers();
+      const members = await supabaseService.readMembers();
       setMembersData(members);
-      localStorage.setItem('members_data', JSON.stringify(members));
       
       console.log(`✅ Sincronização concluída: ${members.length} membros carregados`);
       
       toast({
         title: 'Sincronização concluída',
-        description: `${members.length} membros carregados do Google Sheets.`,
+        description: `${members.length} membros carregados do Supabase.`,
       });
       
     } catch (error) {
       console.error('Erro na sincronização:', error);
       toast({
         title: 'Erro na sincronização',
-        description: 'Não foi possível sincronizar com Google Sheets.',
+        description: 'Não foi possível sincronizar com Supabase.',
         variant: 'destructive',
       });
     } finally {

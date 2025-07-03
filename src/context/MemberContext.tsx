@@ -1,8 +1,10 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 // Importar tipo Member do arquivo de tipos
 import { Member } from '../types/member';
+import { supabaseService } from '@/services/supabaseService';
+import { toast } from '@/hooks/use-toast';
 
 export interface ChurchConfig {
   nomeIgreja: string;
@@ -136,55 +138,176 @@ const sampleMembers: Member[] = [
 export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>([]);
   const [config, setConfig] = useState<ChurchConfig>(defaultConfig);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Carregar dados do localStorage para compatibilidade
-    const storedMembers = localStorage.getItem('church-members');
+    // Carregar dados do Supabase
+    const fetchMembers = async () => {
+      setIsLoading(true);
+      try {
+        const supabaseMembers = await supabaseService.readMembers();
+        if (supabaseMembers && supabaseMembers.length > 0) {
+          setMembers(supabaseMembers);
+        } else {
+          // Usar dados de exemplo na primeira execução se não houver dados no Supabase
+          setMembers(sampleMembers);
+          // Salvar dados de exemplo no Supabase
+          await supabaseService.writeMembers(sampleMembers);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar membros do Supabase:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os membros. Usando dados locais.",
+          variant: "destructive"
+        });
+        
+        // Fallback para localStorage em caso de erro
+        const storedMembers = localStorage.getItem('church-members');
+        if (storedMembers) {
+          setMembers(JSON.parse(storedMembers));
+        } else {
+          setMembers(sampleMembers);
+          localStorage.setItem('church-members', JSON.stringify(sampleMembers));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Carregar configuração
     const storedConfig = localStorage.getItem('church-config');
-    
-    if (storedMembers) {
-      setMembers(JSON.parse(storedMembers));
-    } else {
-      // Usar dados de exemplo na primeira execução
-      setMembers(sampleMembers);
-      localStorage.setItem('church-members', JSON.stringify(sampleMembers));
-    }
-    
     if (storedConfig) {
       setConfig(JSON.parse(storedConfig));
     }
+    
+    fetchMembers();
   }, []);
 
-  const saveMembers = (newMembers: Member[]) => {
+  const saveMembers = useCallback(async (newMembers: Member[]) => {
     setMembers(newMembers);
+    // Salvar no localStorage como backup
     localStorage.setItem('church-members', JSON.stringify(newMembers));
-  };
+    // Sincronizar com Supabase
+    try {
+      await supabaseService.writeMembers(newMembers);
+    } catch (error) {
+      console.error('Erro ao salvar membros no Supabase:', error);
+      toast({
+        title: "Aviso",
+        description: "Os dados foram salvos localmente, mas houve um erro ao sincronizar com o servidor.",
+        variant: "destructive"
+      });
+    }
+  }, []);
 
-  const addMember = (memberData: Omit<Member, 'id' | 'dataCadastro' | 'dataAtualizacao'>) => {
-    const newMember: Member = {
-      ...memberData,
-      id: Date.now().toString(),
-      dataCadastro: new Date().toISOString(),
-      dataAtualizacao: new Date().toISOString()
-    };
-    
-    const newMembers = [...members, newMember];
-    saveMembers(newMembers);
-  };
+  const addMember = useCallback(async (memberData: Omit<Member, 'id' | 'dataCadastro' | 'dataAtualizacao'>) => {
+    setIsLoading(true);
+    try {
+      const newMember: Member = {
+        ...memberData,
+        id: Date.now().toString(),
+        dataCadastro: new Date().toISOString(),
+        dataAtualizacao: new Date().toISOString()
+      };
+      
+      // Adicionar ao Supabase
+      await supabaseService.writeMember(newMember);
+      
+      // Atualizar estado local
+      setMembers(prev => [...prev, newMember]);
+      
+      // Backup no localStorage
+      const updatedMembers = [...members, newMember];
+      localStorage.setItem('church-members', JSON.stringify(updatedMembers));
+      
+      toast({
+        title: "Sucesso",
+        description: "Membro adicionado com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao adicionar membro:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível adicionar o membro",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [members]);
 
-  const updateMember = (id: string, memberData: Partial<Member>) => {
-    const newMembers = members.map(member => 
-      member.id === id 
-        ? { ...member, ...memberData, dataAtualizacao: new Date().toISOString() }
-        : member
-    );
-    saveMembers(newMembers);
-  };
+  const updateMember = useCallback(async (id: string, memberData: Partial<Member>) => {
+    setIsLoading(true);
+    try {
+      const memberToUpdate = members.find(m => m.id === id);
+      if (!memberToUpdate) {
+        throw new Error('Membro não encontrado');
+      }
+      
+      const updatedMember = { 
+        ...memberToUpdate, 
+        ...memberData, 
+        dataAtualizacao: new Date().toISOString() 
+      };
+      
+      // Atualizar no Supabase
+      await supabaseService.updateMember(updatedMember);
+      
+      // Atualizar estado local
+      const newMembers = members.map(member => 
+        member.id === id ? updatedMember : member
+      );
+      
+      setMembers(newMembers);
+      
+      // Backup no localStorage
+      localStorage.setItem('church-members', JSON.stringify(newMembers));
+      
+      toast({
+        title: "Sucesso",
+        description: "Membro atualizado com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar membro:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o membro",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [members]);
 
-  const deleteMember = (id: string) => {
-    const newMembers = members.filter(member => member.id !== id);
-    saveMembers(newMembers);
-  };
+  const deleteMember = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      // Excluir do Supabase
+      await supabaseService.deleteMember(id);
+      
+      // Atualizar estado local
+      const newMembers = members.filter(member => member.id !== id);
+      setMembers(newMembers);
+      
+      // Backup no localStorage
+      localStorage.setItem('church-members', JSON.stringify(newMembers));
+      
+      toast({
+        title: "Sucesso",
+        description: "Membro excluído com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao excluir membro:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o membro",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [members]);
 
   const getMemberById = (id: string) => {
     return members.find(member => member.id === id);
@@ -207,29 +330,79 @@ export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('church-config', JSON.stringify(newConfig));
   };
 
-  const importFromSheets = (sheetsMembers: Member[]) => {
-    // Gerar novos IDs únicos para os membros importados
-    const importedMembers = sheetsMembers.map((member, index) => ({
-      ...member,
-      id: `imported_${Date.now()}_${index}`,
-      dataCadastro: member.dataCadastro || new Date().toISOString(),
-      dataAtualizacao: new Date().toISOString()
-    }));
-    
-    // Substituir completamente os membros pelos dados importados
-    saveMembers(importedMembers);
-    
-    return {
-      imported: importedMembers.length,
-      duplicates: 0,
-      total: importedMembers.length
-    };
-  };
+  const importFromSheets = useCallback(async (sheetsMembers: Member[]) => {
+    setIsLoading(true);
+    try {
+      // Gerar novos IDs únicos para os membros importados
+      const importedMembers = sheetsMembers.map((member, index) => ({
+        ...member,
+        id: `imported_${Date.now()}_${index}`,
+        dataCadastro: member.dataCadastro || new Date().toISOString(),
+        dataAtualizacao: new Date().toISOString()
+      }));
+      
+      // Salvar no Supabase
+      await supabaseService.writeMembers(importedMembers);
+      
+      // Atualizar estado local
+      setMembers(importedMembers);
+      
+      // Backup no localStorage
+      localStorage.setItem('church-members', JSON.stringify(importedMembers));
+      
+      toast({
+        title: "Importação Concluída",
+        description: `${importedMembers.length} membros importados com sucesso.`,
+      });
+      
+      return {
+        imported: importedMembers.length,
+        duplicates: 0,
+        total: importedMembers.length
+      };
+    } catch (error) {
+      console.error('Erro ao importar membros:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível importar os membros",
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const clearMembers = () => {
-    setMembers([]);
-    localStorage.removeItem('church-members');
-  };
+  const clearMembers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Limpar membros no Supabase (isso depende da implementação do serviço)
+      // Uma abordagem é excluir todos os membros um por um
+      for (const member of members) {
+        await supabaseService.deleteMember(member.id);
+      }
+      
+      // Atualizar estado local
+      setMembers([]);
+      
+      // Remover do localStorage
+      localStorage.removeItem('church-members');
+      
+      toast({
+        title: "Sucesso",
+        description: "Todos os membros foram removidos",
+      });
+    } catch (error) {
+      console.error('Erro ao limpar membros:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover todos os membros",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [members]);
 
   return (
     <MemberContext.Provider value={{
@@ -244,7 +417,13 @@ export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       importFromSheets,
       clearMembers
     }}>
-      {children}
+      {isLoading ? (
+        <div className="flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        children
+      )}
     </MemberContext.Provider>
   );
 };

@@ -1,28 +1,37 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Member } from '@/types/member';
 import { toast } from '@/hooks/use-toast';
+import { supabaseService } from '@/services/supabaseService';
+import { useMemberContext } from '@/context/MemberContext';
 
-interface SyncParams {
-  spreadsheetId: string;
-  range: string;
-}
+// Interface não é mais necessária para Supabase
 
 export function useSupabaseMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { importFromSheets, clearMembers } = useMemberContext();
+  
+  // Carregar membros ao inicializar o hook
+  useEffect(() => {
+    fetchMembers();
+  }, []);
 
   // Função para buscar membros do Supabase
   const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Aqui você implementaria a lógica real do Supabase
-      // Por enquanto, retornando array vazio
-      setMembers([]);
+      const data = await supabaseService.readMembers();
+      setMembers(data);
+      
+      // Salvar no localStorage como backup
+      localStorage.setItem('members', JSON.stringify(data));
+      
+      return data;
     } catch (err) {
-      setError('Erro ao buscar membros');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar membros';
+      setError(errorMessage);
       toast({
         title: "Erro",
         description: "Erro ao buscar membros do Supabase",
@@ -33,28 +42,44 @@ export function useSupabaseMembers() {
     }
   }, []);
 
-  // Função para sincronizar membros com planilha
-  const syncMembers = useCallback(async (params: SyncParams) => {
-    setIsSyncing(true);
+  // Função para importar membros do contexto para o Supabase
+  const importToSupabase = useCallback(async (membersToImport: Member[]) => {
+    setIsLoading(true);
     setError(null);
     try {
-      // Aqui você implementaria a lógica real de sincronização
-      // Por enquanto, simulando sucesso
+      // Limpar membros existentes no contexto
+      clearMembers();
+      
+      // Adicionar cada membro ao Supabase
+      const promises = membersToImport.map(member => {
+        const { id, dataCadastro, dataAtualizacao, ...memberData } = member;
+        return supabaseService.writeMember(memberData);
+      });
+      
+      await Promise.all(promises);
+      
+      // Recarregar membros
+      await fetchMembers();
+      
       toast({
         title: "Sucesso",
-        description: "Membros sincronizados com sucesso",
+        description: `${membersToImport.length} membros importados com sucesso`,
       });
+      
+      return true;
     } catch (err) {
-      setError('Erro ao sincronizar membros');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao importar membros';
+      setError(errorMessage);
       toast({
         title: "Erro",
-        description: "Erro ao sincronizar membros",
+        description: "Erro ao importar membros para o Supabase",
         variant: "destructive",
       });
+      return false;
     } finally {
-      setIsSyncing(false);
+      setIsLoading(false);
     }
-  }, []);
+  }, [clearMembers, fetchMembers]);
 
   // Função para pesquisar membros
   const searchMembers = useCallback((query: string): Member[] => {
@@ -75,20 +100,16 @@ export function useSupabaseMembers() {
   const addMember = useCallback(async (member: Omit<Member, 'id' | 'dataCadastro' | 'dataAtualizacao'>) => {
     setIsLoading(true);
     try {
-      // Aqui você implementaria a lógica real do Supabase
-      const newMember: Member = {
-        ...member,
-        id: Date.now().toString(),
-        dataCadastro: new Date().toISOString(),
-        dataAtualizacao: new Date().toISOString(),
-      };
+      const newMember = await supabaseService.writeMember(member);
       setMembers(prev => [...prev, newMember]);
       toast({
         title: "Sucesso",
         description: "Membro adicionado com sucesso",
       });
+      return newMember;
     } catch (err) {
-      setError('Erro ao adicionar membro');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao adicionar membro';
+      setError(errorMessage);
       toast({
         title: "Erro",
         description: "Erro ao adicionar membro",
@@ -103,18 +124,18 @@ export function useSupabaseMembers() {
   const updateMember = useCallback(async (id: string, updates: Partial<Member>) => {
     setIsLoading(true);
     try {
-      // Aqui você implementaria a lógica real do Supabase
+      const updatedMember = await supabaseService.updateMember(id, updates);
       setMembers(prev => prev.map(member => 
-        member.id === id 
-          ? { ...member, ...updates, dataAtualizacao: new Date().toISOString() }
-          : member
+        member.id === id ? updatedMember : member
       ));
       toast({
         title: "Sucesso",
         description: "Membro atualizado com sucesso",
       });
+      return updatedMember;
     } catch (err) {
-      setError('Erro ao atualizar membro');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao atualizar membro';
+      setError(errorMessage);
       toast({
         title: "Erro",
         description: "Erro ao atualizar membro",
@@ -129,19 +150,22 @@ export function useSupabaseMembers() {
   const deleteMember = useCallback(async (id: string) => {
     setIsLoading(true);
     try {
-      // Aqui você implementaria a lógica real do Supabase
+      await supabaseService.deleteMember(id);
       setMembers(prev => prev.filter(member => member.id !== id));
       toast({
         title: "Sucesso",
         description: "Membro removido com sucesso",
       });
+      return true;
     } catch (err) {
-      setError('Erro ao remover membro');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao remover membro';
+      setError(errorMessage);
       toast({
         title: "Erro",
         description: "Erro ao remover membro",
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -150,10 +174,9 @@ export function useSupabaseMembers() {
   return {
     members,
     isLoading,
-    isSyncing,
     error,
     fetchMembers,
-    syncMembers,
+    importToSupabase,
     searchMembers,
     addMember,
     updateMember,

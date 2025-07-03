@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { Member } from '@/types/member';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMemberContext } from '@/context/MemberContext';
 
 interface MemberCarouselProps {
@@ -15,6 +15,7 @@ interface MemberCarouselProps {
 
 const MemberCarousel: React.FC<MemberCarouselProps> = ({ members }) => {
   const { deleteMember } = useMemberContext();
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const itemsPerPage = 3;
@@ -139,7 +140,7 @@ const MemberCarousel: React.FC<MemberCarouselProps> = ({ members }) => {
                     variant="outline" 
                     size="sm" 
                     className="flex-1"
-                    onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfLK72gpQMWE8AzuccdtxsFnvJmKTT05ic7nTC_K5kczJ_27Q/viewform?usp=sf_link', '_blank')}
+                    onClick={() => navigate(`/membros/editar/${member.id}`)}
                   >
                     Editar
                   </Button>

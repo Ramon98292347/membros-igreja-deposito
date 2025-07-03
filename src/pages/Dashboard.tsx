@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/context/AuthContext';
 import { useInventoryContext } from '@/context/InventoryContext';
-import { googleSheetsService } from '@/services/googleSheetsService';
+import { supabaseService } from '@/services/supabaseService';
 import { Search, Plus, Calendar, File, Printer, Users, Building, Package, TrendingUp, Loader2 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -30,29 +30,8 @@ const Dashboard = () => {
   } = useInventoryContext();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [churches, setChurches] = useState<any[]>([]);
-  const [churchesLoading, setChurchesLoading] = useState(false);
-
-  // Carregar dados das igrejas do Google Sheets automaticamente
-  useEffect(() => {
-    const loadChurches = async () => {
-      setChurchesLoading(true);
-      try {
-        console.log('🏛️ Carregando dados das igrejas...');
-        const churchesData = await googleSheetsService.readChurches();
-        setChurches(churchesData);
-        console.log(`✅ ${churchesData.length} igrejas carregadas`);
-      } catch (error) {
-        console.error('Erro ao carregar dados das igrejas:', error);
-      } finally {
-        setChurchesLoading(false);
-      }
-    };
-
-    if (churches.length === 0 && !churchesLoading) {
-      loadChurches();
-    }
-  }, [churches.length, churchesLoading]);
+  const [churches] = useState<any[]>([]); // Não carregar automaticamente, deixar vazio por enquanto
+  const [churchesLoading] = useState(false);
 
   const filteredMembers = useMemo(() => {
     if (!searchQuery.trim()) return members;
@@ -116,7 +95,7 @@ const Dashboard = () => {
     
     // Calcular total de membros de todas as igrejas
     const totalMembersAllChurches = churches.reduce((acc, church) => {
-      return acc + (church.membrosAtuais || 0);
+      return acc + (church.quantidadeMembros || church.membrosAtuais || 0);
     }, 0);
     
     return { totalChurches, byClassification, totalMembersAllChurches };
@@ -189,13 +168,12 @@ const Dashboard = () => {
               Cadastrar Nova Igreja
             </Button>
           </Link>
-          <Button 
-            className="church-gradient text-white shadow-church"
-            onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfLK72gpQMWE8AzuccdtxsFnvJmKTT05ic7nTC_K5kczJ_27Q/viewform?usp=sf_link', '_blank')}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Cadastrar Novo Membro
-          </Button>
+          <Link to="/membros/novo">
+            <Button className="church-gradient text-white shadow-church">
+              <Plus className="w-4 h-4 mr-2" />
+              Cadastrar Novo Membro
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -409,19 +387,25 @@ const Dashboard = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {church.pastor?.nomeCompleto || church.pastor || 'Não informado'}
+                        {(typeof church.pastor === 'object' && church.pastor?.nome) || 
+                         (typeof church.pastor === 'string' ? church.pastor : null) || 
+                         'Não informado'}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Users className="h-4 w-4 text-gray-500" />
-                          {church.membrosAtuais || 0}
+                          {church.quantidadeMembros || church.membrosAtuais || 0}
                         </div>
                       </TableCell>
                       <TableCell>
-                        {church.pastor?.telefone || church.telefone || 'Não informado'}
+                        {(typeof church.pastor === 'object' && church.pastor?.telefone) || 
+                         church.telefone || 
+                         'Não informado'}
                       </TableCell>
                       <TableCell>
-                        {church.pastor?.email || church.email || 'Não informado'}
+                        {(typeof church.pastor === 'object' && church.pastor?.email) || 
+                         church.email || 
+                         'Não informado'}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -454,14 +438,15 @@ const Dashboard = () => {
               <p className="text-white/80 mb-4">
                 Comece cadastrando o primeiro membro da igreja
               </p>
-              <Button 
-                variant="outline" 
-                className="bg-white text-blue-600 hover:bg-gray-50"
-                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfLK72gpQMWE8AzuccdtxsFnvJmKTT05ic7nTC_K5kczJ_27Q/viewform?usp=sf_link', '_blank')}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Cadastrar Primeiro Membro
-              </Button>
+              <Link to="/membros/novo">
+                <Button 
+                  variant="outline" 
+                  className="bg-white text-blue-600 hover:bg-gray-50"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Cadastrar Primeiro Membro
+                </Button>
+              </Link>
             </div>
           ) : (
             <div className="overflow-x-auto">

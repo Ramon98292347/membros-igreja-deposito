@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Church, Settings, Save, List, Grid, BarChart3, TrendingUp, Users, MapPin, Calendar, Download, FileText, PieChart, FileSpreadsheet, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Church, Settings, Save, List, Grid, BarChart3, TrendingUp, Users, MapPin, Calendar, Download, FileText, PieChart, Database, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,30 +10,31 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import SyncButton from '@/components/SyncButton';
-import SpreadsheetConfig from '@/components/SpreadsheetConfig';
+import DatabaseConfig from '@/components/DatabaseConfig';
 import ChurchCarousel from '@/components/ChurchCarousel';
 import { useSupabaseChurches } from '@/hooks/useSupabaseChurches';
 import { toast } from '@/hooks/use-toast';
+import { supabaseService } from '@/services/supabaseService';
 
 const ChurchManagement = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('lista');
   const [viewMode, setViewMode] = useState<'list' | 'carousel'>('list');
-  const [spreadsheetConfig, setSpreadsheetConfig] = useState<{
-    spreadsheetId: string;
-    range: string;
-    apiKey: string;
+  const [databaseConfig, setDatabaseConfig] = useState<{
+    supabaseUrl: string;
+    supabaseKey: string;
   } | null>(null);
-  const [showSpreadsheetConfig, setShowSpreadsheetConfig] = useState(false);
+  const [showDatabaseConfig, setShowDatabaseConfig] = useState(false);
   
   const { churches, isLoading, syncChurches, isSyncing, importedChurches, saveImportedChurches, hasImportedData } = useSupabaseChurches();
 
   // Carregar configuração salva
   useEffect(() => {
-    const savedConfig = localStorage.getItem('sheets-config-churches');
+    const savedConfig = localStorage.getItem('supabase-config');
     if (savedConfig) {
       try {
-        setSpreadsheetConfig(JSON.parse(savedConfig));
+        setDatabaseConfig(JSON.parse(savedConfig));
       } catch (error) {
         console.error('Erro ao carregar configuração:', error);
       }
@@ -45,26 +47,44 @@ const ChurchManagement = () => {
     church.endereco?.rua?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSyncChurches = () => {
-    if (!spreadsheetConfig?.spreadsheetId) {
+  const handleSyncChurches = async () => {
+    if (!supabaseService.isInitialized()) {
       toast({
         title: "Erro",
-        description: "Configure primeiro a planilha de igrejas",
+        description: "Configure primeiro a conexão com o Supabase",
         variant: "destructive",
       });
       return;
     }
 
-    syncChurches({ 
-      spreadsheetId: spreadsheetConfig.spreadsheetId, 
-      range: spreadsheetConfig.range || 'A:Z' 
-    });
+    try {
+      const churchesData = await supabaseService.readChurches();
+      if (churchesData && churchesData.length > 0) {
+        saveImportedChurches(churchesData);
+        toast({
+          title: "Sucesso",
+          description: `${churchesData.length} igrejas importadas com sucesso!`,
+        });
+      } else {
+        toast({
+          title: "Aviso",
+          description: "Nenhuma igreja encontrada no Supabase",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar igrejas:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao importar igrejas do Supabase",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleConfigSave = (config: { spreadsheetId: string; range: string; apiKey: string }) => {
-    // Salvar configuração específica para igrejas
-    localStorage.setItem('sheets-config-churches', JSON.stringify(config));
-    setSpreadsheetConfig(config);
+  const handleConfigSave = (config: { supabaseUrl: string; supabaseKey: string }) => {
+    // Salvar configuração do Supabase
+    localStorage.setItem('supabase-config', JSON.stringify(config));
+    setDatabaseConfig(config);
   };
 
   // Funções para gerar relatórios CSV
@@ -375,7 +395,7 @@ const ChurchManagement = () => {
                     </Button>
                   </div>
                   <Button 
-                    onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfcAArZc2VDykV5UQs-r7Q0bkP6h1ApjbZ9XDRHRiEckT78Xg/viewform?usp=dialog', '_blank')}
+                    onClick={() => navigate('/igrejas/nova')}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Nova Igreja
@@ -426,7 +446,7 @@ const ChurchManagement = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfcAArZc2VDykV5UQs-r7Q0bkP6h1ApjbZ9XDRHRiEckT78Xg/viewform?usp=dialog', '_blank')}
+                                onClick={() => navigate(`/igrejas/editar/${church.id}`)}
                               >
                                 Editar
                               </Button>
@@ -766,7 +786,7 @@ const ChurchManagement = () => {
                   Acesse o formulário de solicitação de remanejamento
                 </p>
                 <Button 
-                  onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfUaFHQtYTWw60A7R8dDWdYwGw2_dX8YjArjypBzeCaklgu_Q/viewform?usp=sf_link', '_blank')}
+                  onClick={() => navigate('/remanejamento')}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   Abrir Formulário de Remanejamento
@@ -787,7 +807,7 @@ const ChurchManagement = () => {
                   Acesse o formulário de contratos
                 </p>
                 <Button 
-                  onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSc_YGx4Dvri4rCIR9sByyaMaMwdFItVSL-UBd3HH_OAVU0qvQ/viewform?usp=dialog', '_blank')}
+                  onClick={() => navigate('/contratos')}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   Abrir Formulário de Contratos
@@ -802,34 +822,31 @@ const ChurchManagement = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
-                Configurações do Google Sheets
+                Configurações do Supabase
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Seção de Configuração da Planilha */}
+              {/* Seção de Configuração do Banco de Dados */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Configuração da Planilha</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Configuração do Banco de Dados</h3>
                 <div className="flex gap-3">
                    <Button 
-                     onClick={() => setShowSpreadsheetConfig(true)}
+                     onClick={() => setShowDatabaseConfig(true)}
                      className="bg-blue-600 hover:bg-blue-700 text-white"
                      size="lg"
                    >
-                     <FileSpreadsheet className="h-4 w-4 mr-2" />
-                     Cadastrar Planilha
+                     <Database className="h-4 w-4 mr-2" />
+                     Configurar Supabase
                    </Button>
                  </div>
-                {spreadsheetConfig && (
+                {databaseConfig && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="font-medium text-green-800">Planilha Configurada</span>
+                      <span className="font-medium text-green-800">Supabase Configurado</span>
                     </div>
                     <p className="text-sm text-green-700">
-                      Planilha ID: {spreadsheetConfig.spreadsheetId?.substring(0, 20)}...
-                    </p>
-                    <p className="text-sm text-green-700">
-                      Aba: {spreadsheetConfig.sheetName}
+                      URL: {databaseConfig.supabaseUrl?.substring(0, 20)}...
                     </p>
                   </div>
                 )}
@@ -838,13 +855,14 @@ const ChurchManagement = () => {
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Sincronização de Dados</h3>
                 <SyncButton
-                  onSyncFromSheets={handleSyncChurches}
-                  onSyncToSheets={() => {}}
-                  onOpenConfig={() => setShowSpreadsheetConfig(true)}
+                  onSyncFromDatabase={handleSyncChurches}
+                  onSyncToDatabase={() => {}}
+                  onSaveToSystem={() => {}}
+                  onOpenConfig={() => setShowDatabaseConfig(true)}
                   isLoading={isLoading}
                   isSyncing={isSyncing}
                   memberCount={churches.length}
-                  hasConfig={!!spreadsheetConfig}
+                  hasConfig={!!databaseConfig}
                 />
                 {hasImportedData && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
@@ -868,16 +886,16 @@ const ChurchManagement = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Dialog de Configuração do Google Sheets */}
-       <Dialog open={showSpreadsheetConfig} onOpenChange={setShowSpreadsheetConfig}>
+      {/* Dialog de Configuração do Supabase */}
+       <Dialog open={showDatabaseConfig} onOpenChange={setShowDatabaseConfig}>
          <DialogContent className="max-w-2xl">
            <DialogHeader>
-             <DialogTitle>Configuração do Google Sheets</DialogTitle>
+             <DialogTitle>Configuração do Supabase</DialogTitle>
            </DialogHeader>
-           <SpreadsheetConfig
+           <DatabaseConfig
              onSave={(config) => {
                handleConfigSave(config);
-               setShowSpreadsheetConfig(false);
+               setShowDatabaseConfig(false);
              }}
            />
          </DialogContent>

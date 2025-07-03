@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Church as ChurchType } from '@/types/church';
-
+import { useNavigate } from 'react-router-dom';
 import { useChurchContext } from '@/context/ChurchContext';
 
 interface ChurchCarouselProps {
@@ -14,6 +14,7 @@ interface ChurchCarouselProps {
 
 const ChurchCarousel: React.FC<ChurchCarouselProps> = ({ churches }) => {
   const { deleteChurch } = useChurchContext();
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedChurch, setSelectedChurch] = useState<ChurchType | null>(null);
   const itemsPerPage = 3;
@@ -136,7 +137,7 @@ const ChurchCarousel: React.FC<ChurchCarouselProps> = ({ churches }) => {
                     variant="outline" 
                     size="sm" 
                     className="flex-1"
-                    onClick={() => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfcAArZc2VDykV5UQs-r7Q0bkP6h1ApjbZ9XDRHRiEckT78Xg/viewform?usp=dialog', '_blank')}
+                    onClick={() => navigate(`/igrejas/editar/${church.id}`)}
                   >
                     Editar
                   </Button>
