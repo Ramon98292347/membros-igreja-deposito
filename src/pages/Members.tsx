@@ -15,6 +15,8 @@ import DatabaseConfig from '@/components/DatabaseConfig';
 import MemberCarousel from '@/components/MemberCarousel';
 import MemberRecordCards from '@/components/MemberRecordCards';
 import MemberCardCarousel from '@/components/MemberCardCarousel';
+import PreachingLetter from '@/components/PreachingLetter';
+import WorkerForm from '@/components/WorkerForm';
 import { useMemberContext } from '@/context/MemberContext';
 import { toast } from '@/hooks/use-toast';
 import { supabaseService } from '@/services/supabaseService';
@@ -30,7 +32,7 @@ const Members = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
-  const { members, searchMembers, addMember, updateMember, deleteMember, importFromSheets } = useMemberContext();
+  const { members, searchMembers, addMember, updateMember, deleteMember, importFromSheets, refreshMembers } = useMemberContext();
 
   // Carregar configuração salva e dados locais ao inicializar
   useEffect(() => {
@@ -341,20 +343,40 @@ const Members = () => {
                     {filteredMembers.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8">
-                          <div className="text-muted-foreground">
-                            {searchQuery ? 'Nenhum membro encontrado' : 'Nenhum membro cadastrado'}
+                          <div className="text-muted-foreground mb-4">
+                            {searchQuery ? 'Nenhum membro encontrado' : 'Nenhum membro cadastrado no banco de dados'}
                           </div>
-                          {!databaseConfig && (
-                            <div className="mt-2">
+                          <div className="flex gap-2 justify-center">
+                            {!databaseConfig ? (
                               <Button 
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => setShowDatabaseConfig(true)}
                               >
+                                <Database className="h-4 w-4 mr-2" />
                                 Configurar Supabase
                               </Button>
-                            </div>
-                          )}
+                            ) : (
+                              <>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={refreshMembers}
+                                >
+                                  <Database className="h-4 w-4 mr-2" />
+                                  Recarregar Dados
+                                </Button>
+                                <Button 
+                                  variant="default" 
+                                  size="sm"
+                                  onClick={() => navigate('/membros/novo')}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Cadastrar Primeiro Membro
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -418,20 +440,40 @@ const Members = () => {
               <div className="py-4">
                 {filteredMembers.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="text-muted-foreground">
-                      {searchQuery ? 'Nenhum membro encontrado' : 'Nenhum membro cadastrado'}
+                    <div className="text-muted-foreground mb-4">
+                      {searchQuery ? 'Nenhum membro encontrado' : 'Nenhum membro cadastrado no banco de dados'}
                     </div>
-                    {!databaseConfig && (
-                      <div className="mt-2">
+                    <div className="flex gap-2 justify-center">
+                      {!databaseConfig ? (
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => setShowDatabaseConfig(true)}
                         >
+                          <Database className="h-4 w-4 mr-2" />
                           Configurar Supabase
                         </Button>
-                      </div>
-                    )}
+                      ) : (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={refreshMembers}
+                          >
+                            <Database className="h-4 w-4 mr-2" />
+                            Recarregar Dados
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => navigate('/membros/novo')}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Cadastrar Primeiro Membro
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <MemberCarousel members={filteredMembers} />
@@ -451,46 +493,14 @@ const Members = () => {
       </TabsContent>
 
       <TabsContent value="carta-pregacao" className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Carta de Pregação</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                Acesse o formulário de carta de pregação
-              </p>
-              <Button 
-                onClick={() => navigate('/carta-pregacao')}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                Abrir Formulário de Carta de Pregação
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <PreachingLetter />
       </TabsContent>
 
       <TabsContent value="ficha-obreiros" className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Ficha de Obreiros</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                Acesse o formulário de ficha de obreiros
-              </p>
-              <Button 
-                onClick={() => navigate('/ficha-obreiros')}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                Abrir Formulário de Ficha de Obreiros
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <WorkerForm />
       </TabsContent>
+
+
 
       <TabsContent value="configuracoes" className="space-y-4">
         <Card>
@@ -528,18 +538,43 @@ const Members = () => {
             </div>
 
             <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Sincronização de Dados</h3>
-              <SyncButton
-                onSyncFromDatabase={handleSyncFromDatabase}
-                onSyncToDatabase={handleSyncToDatabase}
-                onSaveToSystem={handleSaveToSystem}
-                onOpenConfig={() => setShowDatabaseConfig(true)}
-                isLoading={isLoading}
-                isSyncing={isSyncing}
-                lastSyncTime={lastSyncTime || undefined}
-                memberCount={displayMembers.length}
-                hasConfig={!!databaseConfig}
-              />
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Gerenciamento de Dados</h3>
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={refreshMembers}
+                    variant="outline"
+                    size="lg"
+                    disabled={!databaseConfig}
+                  >
+                    <Database className="h-4 w-4 mr-2" />
+                    Recarregar do Banco de Dados
+                  </Button>
+                  <Button 
+                    onClick={() => navigate('/membros/novo')}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    size="lg"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Cadastrar Novo Membro
+                  </Button>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <h4 className="text-md font-semibold text-gray-700 mb-3">Sincronização Avançada</h4>
+                  <SyncButton
+                    onSyncFromDatabase={handleSyncFromDatabase}
+                    onSyncToDatabase={handleSyncToDatabase}
+                    onSaveToSystem={handleSaveToSystem}
+                    onOpenConfig={() => setShowDatabaseConfig(true)}
+                    isLoading={isLoading}
+                    isSyncing={isSyncing}
+                    lastSyncTime={lastSyncTime || undefined}
+                    memberCount={displayMembers.length}
+                    hasConfig={!!databaseConfig}
+                  />
+                </div>
+              </div>
               {importedMembers.length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
                   <div className="flex items-center justify-between">

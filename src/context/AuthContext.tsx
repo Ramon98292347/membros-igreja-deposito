@@ -33,10 +33,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
-  // Verificar se há usuário logado no Supabase
+  // Carregar dados automaticamente e verificar usuário
   useEffect(() => {
-    const checkUser = async () => {
+    const initializeData = async () => {
       try {
+        // Sempre carregar dados de membros, independente de autenticação
+        await loadMembersData();
+        
+        // Verificar se há usuário logado
         const currentUser = await supabaseService.getCurrentUser();
         
         if (currentUser) {
@@ -47,19 +51,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           };
           
           setUser(userData);
-          
-          // Carregar dados de membros
-          await syncData();
         }
       } catch (error) {
-        console.error('Erro ao verificar usuário:', error);
+        console.error('Erro ao inicializar dados:', error);
       } finally {
         setIsLoading(false);
       }
     };
     
-    checkUser();
+    initializeData();
   }, []);
+
+  // Função para carregar dados de membros
+  const loadMembersData = async () => {
+    try {
+      const members = await supabaseService.readMembers();
+      setMembersData(members || []);
+      console.log(`Carregados ${members?.length || 0} membros automaticamente`);
+    } catch (error) {
+      console.error('Erro ao carregar membros:', error);
+      setMembersData([]);
+    }
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -145,30 +158,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const syncData = async () => {
-    if (!user) return;
-    
     setIsSyncing(true);
-    
     try {
-      console.log('🔄 Iniciando sincronização com Supabase...');
-      
-      // Sincronizar membros
-      const members = await supabaseService.readMembers();
-      setMembersData(members);
-      
-      console.log(`✅ Sincronização concluída: ${members.length} membros carregados`);
+      await loadMembersData();
       
       toast({
-        title: 'Sincronização concluída',
-        description: `${members.length} membros carregados do Supabase.`,
+        title: "Dados sincronizados",
+        description: `${membersData?.length || 0} membros carregados com sucesso.`,
       });
-      
     } catch (error) {
-      console.error('Erro na sincronização:', error);
+      console.error('Erro ao sincronizar dados:', error);
       toast({
-        title: 'Erro na sincronização',
-        description: 'Não foi possível sincronizar com Supabase.',
-        variant: 'destructive',
+        title: "Erro na sincronização",
+        description: "Não foi possível carregar os dados do Supabase.",
+        variant: "destructive",
       });
     } finally {
       setIsSyncing(false);

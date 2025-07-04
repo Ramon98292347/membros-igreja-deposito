@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useChurchContext } from '@/context/ChurchContext';
-import { FileText, Printer, Settings } from 'lucide-react';
+import { FileText, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -347,20 +347,10 @@ CPF:`
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Contratos
-          </CardTitle>
-          <Button
-            onClick={() => setShowConfig(true)}
-            variant="outline"
-            size="sm"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Configurar Templates
-          </Button>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          Contratos
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div>

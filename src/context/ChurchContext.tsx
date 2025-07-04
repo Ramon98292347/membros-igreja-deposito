@@ -75,15 +75,8 @@ export const ChurchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addChurch = useCallback(async (churchData: Omit<Church, 'id' | 'dataCadastro' | 'dataAtualizacao'>) => {
     setIsLoading(true);
     try {
-      const newChurch: Church = {
-        ...churchData,
-        id: Date.now().toString(),
-        dataCadastro: new Date().toISOString(),
-        dataAtualizacao: new Date().toISOString()
-      };
-      
-      // Adicionar ao Supabase
-      await supabaseService.writeChurch(newChurch);
+      // Adicionar ao Supabase (sem ID, deixa o Supabase gerar)
+      const newChurch = await supabaseService.writeChurch(churchData);
       
       // Atualizar estado local
       setChurches(prev => [...prev, newChurch]);
@@ -111,22 +104,21 @@ export const ChurchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!churchToUpdate) {
         throw new Error('Igreja não encontrada');
       }
-      
-      const updatedChurch: Church = { 
-        ...churchData, 
-        id, 
-        dataCadastro: churchToUpdate.dataCadastro, 
-        dataAtualizacao: new Date().toISOString() 
+
+      // Criar dados para atualização sem incluir dataCadastro
+      const updateData = {
+        ...churchData,
+        // Não incluir dataCadastro para evitar erro de null constraint
       };
-      
-      // Atualizar no Supabase
-      await supabaseService.updateChurch(updatedChurch);
-      
-      // Atualizar estado local
-      setChurches(prev => prev.map(church => 
-        church.id === id ? updatedChurch : church
+
+      // Atualizar no Supabase (sem dataCadastro)
+      const updatedChurchFromDB = await supabaseService.updateChurch(id, updateData);
+
+      // Atualizar estado local com dados do banco
+      setChurches(prev => prev.map(church =>
+        church.id === id ? updatedChurchFromDB : church
       ));
-      
+
       toast({
         title: "Sucesso",
         description: "Igreja atualizada com sucesso",
@@ -136,12 +128,12 @@ export const ChurchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       toast({
         title: "Erro",
         description: "Não foi possível atualizar a igreja",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  }, [churches]);
+  }, [churches, toast]);
 
   const deleteChurch = useCallback(async (id: string) => {
     setIsLoading(true);

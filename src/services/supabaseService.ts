@@ -1,67 +1,44 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { Member } from '../types/member';
 import { Church } from '../types/church';
-
-// Configuração do Supabase
-const supabaseUrl = 'https://hwstbxvalwbrqarbdzep.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3c3RieHZhbHdicnFhcmJkemVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzMjU3MTIsImV4cCI6MjA2NjkwMTcxMn0.PMSVztn6ve2hstK4nwLOCKGcdJFaxYfEZNfb3hm8Ev8';
-
-// Inicialização do cliente Supabase com opções de autenticação
-let supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    storage: localStorage
-  }
-});
+import { supabase, supabaseConfig, isSupabaseConfigured } from '../config/supabase';
 
 class SupabaseService {
   // Método para verificar se o Supabase está inicializado
   isInitialized(): boolean {
     try {
-      // Verificar se há configuração salva no localStorage
-      const savedConfig = localStorage.getItem('supabase-config');
-      if (savedConfig) {
-        const config = JSON.parse(savedConfig);
-        return !!(config.supabaseUrl && config.supabaseKey);
-      }
-      
-      // Se não há configuração salva, verificar se está usando as credenciais padrão
-      return !!(supabaseUrl && supabaseKey);
+      return isSupabaseConfigured();
     } catch (error) {
       console.error('Erro ao verificar inicialização do Supabase:', error);
       return false;
     }
   }
 
-  // Método para inicializar o cliente Supabase com novas credenciais
+  // Método para inicializar o cliente Supabase com novas credenciais (mantido para compatibilidade)
   initializeClient(url: string, key: string): SupabaseClient {
     try {
       console.log('Inicializando cliente Supabase com:', { url });
-      
+
       if (!url || !key) {
         console.error('URL ou chave do Supabase não fornecidos');
         throw new Error('URL e chave do Supabase são obrigatórios');
       }
-      
-      // Cria um novo cliente com as credenciais fornecidas
-      const newClient = createClient(url, key, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true
-        }
-      });
-      
-      // Atualiza o cliente global
-      if (url === supabaseUrl && key === supabaseKey) {
-        console.log('Atualizando cliente Supabase global');
-        supabase = newClient;
+
+      // Para manter compatibilidade, retorna o cliente configurado se as credenciais coincidirem
+      if (url === supabaseConfig.url && key === supabaseConfig.key) {
+        console.log('Usando cliente Supabase configurado');
+        return supabase;
       } else {
         console.log('Criando cliente Supabase temporário para teste');
+        // Importa createClient apenas quando necessário
+        const { createClient } = require('@supabase/supabase-js');
+        return createClient(url, key, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true
+          }
+        });
       }
-      
-      console.log('Cliente Supabase inicializado com sucesso');
-      return newClient;
     } catch (error) {
       console.error('Erro ao inicializar cliente Supabase:', error);
       throw error;
@@ -308,7 +285,7 @@ class SupabaseService {
     return this.readMembers();
   }
 
-  // Função para mapear campos camelCase para snake_case (igrejas)
+  // Função para mapear campos camelCase para snake_case (APENAS PARA CRIAÇÃO)
   private mapChurchToDatabase(church: any): any {
     const mapped: any = {
       classificacao: church.classificacao || null,
@@ -324,17 +301,28 @@ class SupabaseService {
       quantidadecriancas: church.quantidadeCriancas || 0,
       diasfuncionamento: church.diasFuncionamento || null,
       foto: church.foto || null,
-      datacadastro: church.dataCadastro || null,
-      dataatualizacao: church.dataAtualizacao || null,
       telefone: church.telefone || null,
       email: church.email || null
     };
-    
+
+    // APENAS para criação - incluir datacadastro
+    if (church.dataCadastro) {
+      mapped.datacadastro = church.dataCadastro;
+    } else {
+      // Para criação, sempre incluir data atual
+      mapped.datacadastro = new Date().toISOString();
+    }
+
+    // Para atualização, incluir dataAtualizacao
+    if (church.dataAtualizacao) {
+      mapped.dataatualizacao = church.dataAtualizacao;
+    }
+
     // Só incluir o ID se ele existir (para updates)
     if (church.id) {
       mapped.id = church.id;
     }
-    
+
     return mapped;
   }
 
@@ -422,29 +410,97 @@ class SupabaseService {
     }
   }
 
+
+
   async updateChurch(id: string, church: Partial<Church>): Promise<Church> {
     try {
-      const churchWithDate = {
-        ...church,
-        dataAtualizacao: new Date().toISOString()
-      };
+      console.log('=== INÍCIO ATUALIZAÇÃO IGREJA ===');
+      console.log('ID:', id);
+      console.log('Dados recebidos:', church);
 
-      const dbUpdates = this.mapChurchToDatabase(churchWithDate);
+      // CRIAR OBJETO LIMPO - SEM DATACADASTRO
+      const cleanUpdateData: any = {};
+
+      // Mapear APENAS os campos permitidos - NUNCA datacadastro
+      if (church.classificacao !== undefined && church.classificacao !== null) {
+        cleanUpdateData.classificacao = church.classificacao;
+      }
+      if (church.nomeIPDA !== undefined && church.nomeIPDA !== null) {
+        cleanUpdateData.nomeipda = church.nomeIPDA;
+      }
+      if (church.tipoIPDA !== undefined && church.tipoIPDA !== null) {
+        cleanUpdateData.tipoipda = church.tipoIPDA;
+      }
+      if (church.endereco !== undefined && church.endereco !== null) {
+        cleanUpdateData.endereco = church.endereco;
+      }
+      if (church.pastor !== undefined && church.pastor !== null) {
+        cleanUpdateData.pastor = church.pastor;
+      }
+      if (church.membrosIniciais !== undefined && church.membrosIniciais !== null) {
+        cleanUpdateData.membrosiniciais = church.membrosIniciais;
+      }
+      if (church.membrosAtuais !== undefined && church.membrosAtuais !== null) {
+        cleanUpdateData.membrosatuais = church.membrosAtuais;
+      }
+      if (church.quantidadeMembros !== undefined && church.quantidadeMembros !== null) {
+        cleanUpdateData.quantidademembros = church.quantidadeMembros;
+      }
+      if (church.almasBatizadas !== undefined && church.almasBatizadas !== null) {
+        cleanUpdateData.almasbatizadas = church.almasBatizadas;
+      }
+      if (church.temEscola !== undefined && church.temEscola !== null) {
+        cleanUpdateData.temescola = church.temEscola;
+      }
+      if (church.quantidadeCriancas !== undefined && church.quantidadeCriancas !== null) {
+        cleanUpdateData.quantidadecriancas = church.quantidadeCriancas;
+      }
+      if (church.diasFuncionamento !== undefined && church.diasFuncionamento !== null) {
+        cleanUpdateData.diasfuncionamento = church.diasFuncionamento;
+      }
+      if (church.foto !== undefined && church.foto !== null) {
+        cleanUpdateData.foto = church.foto;
+      }
+      if (church.telefone !== undefined && church.telefone !== null) {
+        cleanUpdateData.telefone = church.telefone;
+      }
+      if (church.email !== undefined && church.email !== null) {
+        cleanUpdateData.email = church.email;
+      }
+
+      // SEMPRE incluir dataAtualizacao
+      cleanUpdateData.dataatualizacao = new Date().toISOString();
+
+      // GARANTIR que datacadastro NÃO existe
+      delete cleanUpdateData.datacadastro;
+      delete cleanUpdateData.dataCadastro;
+
+      console.log('=== DADOS LIMPOS PARA ATUALIZAÇÃO ===');
+      console.log('Dados enviados para Supabase:', cleanUpdateData);
+      console.log('Campos incluídos:', Object.keys(cleanUpdateData));
+      console.log('Contém datacadastro?', 'datacadastro' in cleanUpdateData);
+      console.log('Contém dataCadastro?', 'dataCadastro' in cleanUpdateData);
 
       const { data, error } = await supabase
         .from('churches')
-        .update(dbUpdates)
+        .update(cleanUpdateData)
         .eq('id', id)
         .select()
         .single();
 
       if (error) {
-        console.error('Erro ao atualizar igreja:', error);
+        console.error('=== ERRO SUPABASE ===');
+        console.error('Erro completo:', error);
+        console.error('Mensagem:', error.message);
+        console.error('Detalhes:', error.details);
         throw new Error(`Erro ao atualizar igreja: ${error.message}`);
       }
 
+      console.log('=== SUCESSO ===');
+      console.log('Igreja atualizada:', data);
       return this.mapChurchFromDatabase(data);
     } catch (error) {
+      console.error('=== ERRO GERAL ===');
       console.error('Erro ao atualizar igreja:', error);
       throw error;
     }

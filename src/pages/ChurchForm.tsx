@@ -80,27 +80,47 @@ const ChurchForm = () => {
       const church = getChurchById(id);
       if (church) {
         setFormData({
-          classificacao: church.classificacao,
-          nomeIPDA: church.nomeIPDA,
-          tipoIPDA: church.tipoIPDA,
-          endereco: { ...church.endereco },
-          pastor: { 
-            ...church.pastor, 
-            dataConclusaoCFO: church.pastor.dataConclusaoCFO || '',
-            cpf: church.pastor.cpf || '',
-            endereco: church.pastor.endereco || {
-              rua: '',
-              numero: '',
-              bairro: '',
-              cidade: '',
-              estado: '',
-              cep: ''
+          classificacao: church.classificacao || '',
+          nomeIPDA: church.nomeIPDA || '',
+          tipoIPDA: church.tipoIPDA || '',
+          endereco: {
+            logradouro: church.endereco?.logradouro || '',
+            rua: church.endereco?.rua || '',
+            numero: church.endereco?.numero || '',
+            complemento: church.endereco?.complemento || '',
+            bairro: church.endereco?.bairro || '',
+            cidade: church.endereco?.cidade || '',
+            estado: church.endereco?.estado || '',
+            cep: church.endereco?.cep || ''
+          },
+          pastor: {
+            nome: (church.pastor as any)?.nome || '',
+            nomeCompleto: (church.pastor as any)?.nomeCompleto || '',
+            cpf: (church.pastor as any)?.cpf || '',
+            telefone: (church.pastor as any)?.telefone || '',
+            email: (church.pastor as any)?.email || '',
+            dataNascimento: (church.pastor as any)?.dataNascimento || '',
+            dataBatismo: (church.pastor as any)?.dataBatismo || '',
+            estadoCivil: (church.pastor as any)?.estadoCivil || '',
+            funcaoMinisterial: (church.pastor as any)?.funcaoMinisterial || '',
+            possuiCFO: (church.pastor as any)?.possuiCFO || false,
+            dataConclusaoCFO: (church.pastor as any)?.dataConclusaoCFO || '',
+            dataAssumiu: (church.pastor as any)?.dataAssumiu || '',
+            endereco: {
+              logradouro: (church.pastor as any)?.endereco?.logradouro || '',
+              rua: (church.pastor as any)?.endereco?.rua || '',
+              numero: (church.pastor as any)?.endereco?.numero || '',
+              complemento: (church.pastor as any)?.endereco?.complemento || '',
+              bairro: (church.pastor as any)?.endereco?.bairro || '',
+              cidade: (church.pastor as any)?.endereco?.cidade || '',
+              estado: (church.pastor as any)?.endereco?.estado || '',
+              cep: (church.pastor as any)?.endereco?.cep || ''
             }
           },
-          membrosIniciais: church.membrosIniciais,
-          membrosAtuais: church.membrosAtuais,
-          almasBatizadas: church.almasBatizadas,
-          temEscola: church.temEscola,
+          membrosIniciais: church.membrosIniciais || 0,
+          membrosAtuais: church.membrosAtuais || 0,
+          almasBatizadas: church.almasBatizadas || 0,
+          temEscola: church.temEscola || false,
           quantidadeCriancas: church.quantidadeCriancas || 0,
           diasFuncionamento: Array.isArray(church.diasFuncionamento) ? church.diasFuncionamento : [],
           foto: church.foto || ''
@@ -527,11 +547,19 @@ const ChurchForm = () => {
 
               <div>
                 <Label htmlFor="funcaoMinisterial">Função Ministerial</Label>
-                <Input
-                  id="funcaoMinisterial"
-                  value={formData.pastor.funcaoMinisterial}
-                  onChange={(e) => handleInputChange('funcaoMinisterial', e.target.value, 'pastor')}
-                />
+                <Select value={formData.pastor.funcaoMinisterial} onValueChange={(value) => handleInputChange('funcaoMinisterial', value, 'pastor')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a função ministerial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Obreiro/Cooperador(a)">Obreiro/Cooperador(a)</SelectItem>
+                    <SelectItem value="Diácono">Diácono</SelectItem>
+                    <SelectItem value="Presbítero">Presbítero</SelectItem>
+                    <SelectItem value="Pastor">Pastor</SelectItem>
+                    <SelectItem value="Evangelista">Evangelista</SelectItem>
+                    <SelectItem value="Financeiro(a)">Financeiro(a)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>

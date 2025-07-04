@@ -17,11 +17,13 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/context/AuthContext';
 import { useInventoryContext } from '@/context/InventoryContext';
+import { useChurchContext } from '@/context/ChurchContext';
 import { supabaseService } from '@/services/supabaseService';
 import { Search, Plus, Calendar, File, Printer, Users, Building, Package, TrendingUp, Loader2 } from 'lucide-react';
 
 const Dashboard = () => {
   const { membersData: members, isSyncing, isLoading } = useAuth();
+  const { churches } = useChurchContext();
   const { 
     getTotalStockValue, 
     getTotalItemTypes, 
@@ -30,8 +32,6 @@ const Dashboard = () => {
   } = useInventoryContext();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [churches] = useState<any[]>([]); // Não carregar automaticamente, deixar vazio por enquanto
-  const [churchesLoading] = useState(false);
 
   const filteredMembers = useMemo(() => {
     if (!searchQuery.trim()) return members;
@@ -136,7 +136,7 @@ const Dashboard = () => {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  if (isLoading || isSyncing || churchesLoading) {
+  if (isLoading || isSyncing) {
     return (
       <ResponsiveContainer>
         <div className="flex items-center justify-center min-h-[400px]">

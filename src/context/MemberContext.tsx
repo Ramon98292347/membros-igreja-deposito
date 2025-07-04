@@ -24,6 +24,7 @@ interface MemberContextType {
   updateConfig: (config: ChurchConfig) => void;
   importFromSheets: (sheetsMembers: Member[]) => void;
   clearMembers: () => void;
+  refreshMembers: () => Promise<void>;
 }
 
 const MemberContext = createContext<MemberContextType | undefined>(undefined);
@@ -43,97 +44,7 @@ const defaultConfig: ChurchConfig = {
   email: 'contato@ipdavitoria.com.br'
 };
 
-// Dados de exemplo mantidos para compatibilidade
-const sampleMembers: Member[] = [
-  {
-    id: '1',
-    nomeCompleto: 'João Silva Santos',
-    endereco: 'Rua das Flores',
-    numeroCasa: '123',
-    bairro: 'Centro',
-    cidade: 'Vitória',
-    estado: 'ES',
-    cep: '29000-000',
-    rg: '12345678',
-    cpf: '123.456.789-00',
-    dataNascimento: '1985-03-15',
-    cidadeNascimento: 'Vitória',
-    estadoCidadeNascimento: 'ES',
-    estadoCivil: 'Casado(a)',
-    email: 'joao@email.com',
-    profissao: 'Engenheiro',
-    idade: 39,
-    telefone: '(27) 99999-1234',
-    dataBatismo: '2010-05-20',
-    dataOrdenacao: '2015-08-10',
-    igrejaBatismo: 'IPDA Vitória',
-    funcaoMinisterial: 'Presbítero',
-    ativo: true,
-    dataCadastro: '2024-01-15',
-    dataAtualizacao: '2024-01-15',
-    observacoes: '',
-    foto: '',
-    linkFicha: '',
-    dadosCarteirinha: ''
-  },
-  {
-    id: '2',
-    nomeCompleto: 'Maria Oliveira Costa',
-    endereco: 'Avenida Central',
-    numeroCasa: '456',
-    bairro: 'Jardim da Penha',
-    cidade: 'Vitória',
-    estado: 'ES',
-    cep: '29060-000',
-    rg: '87654321',
-    cpf: '987.654.321-00',
-    dataNascimento: '1990-07-22',
-    cidadeNascimento: 'Serra',
-    estadoCidadeNascimento: 'ES',
-    estadoCivil: 'Solteiro(a)',
-    email: 'maria@email.com',
-    profissao: 'Professora',
-    idade: 34,
-    telefone: '(27) 98888-5678',
-    dataBatismo: '2012-09-15',
-    igrejaBatismo: 'IPDA Serra',
-    funcaoMinisterial: 'Obreiro',
-    ativo: true,
-    dataCadastro: '2024-02-10',
-    dataAtualizacao: '2024-02-10',
-    observacoes: '',
-    foto: ''
-  },
-  {
-    id: '3',
-    nomeCompleto: 'Pedro Mendes Lima',
-    endereco: 'Rua da Paz',
-    numeroCasa: '789',
-    bairro: 'Praia do Canto',
-    cidade: 'Vitória',
-    estado: 'ES',
-    cep: '29055-000',
-    rg: '11223344',
-    cpf: '111.222.333-44',
-    dataNascimento: '1975-12-08',
-    cidadeNascimento: 'Vila Velha',
-    estadoCidadeNascimento: 'ES',
-    estadoCivil: 'Casado(a)',
-    email: 'pedro@email.com',
-    profissao: 'Comerciante',
-    idade: 49,
-    telefone: '(27) 97777-9012',
-    dataBatismo: '2008-03-25',
-    dataOrdenacao: '2020-10-15',
-    igrejaBatismo: 'IPDA Vila Velha',
-    funcaoMinisterial: 'Pastor',
-    ativo: true,
-    dataCadastro: '2024-01-20',
-    dataAtualizacao: '2024-01-20',
-    observacoes: '',
-    foto: ''
-  }
-];
+// Dados carregados exclusivamente do banco de dados Supabase
 
 export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [members, setMembers] = useState<Member[]>([]);
@@ -141,35 +52,19 @@ export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Carregar dados do Supabase
+    // Carregar dados automaticamente do Supabase
     const fetchMembers = async () => {
       setIsLoading(true);
       try {
+        // Tentar carregar dados do Supabase sempre
         const supabaseMembers = await supabaseService.readMembers();
-        if (supabaseMembers && supabaseMembers.length > 0) {
-          setMembers(supabaseMembers);
-        } else {
-          // Usar dados de exemplo na primeira execução se não houver dados no Supabase
-          setMembers(sampleMembers);
-          // Salvar dados de exemplo no Supabase
-          await supabaseService.writeMembers(sampleMembers);
-        }
+        setMembers(supabaseMembers || []);
+        console.log(`Carregados ${supabaseMembers?.length || 0} membros do Supabase`);
       } catch (error) {
         console.error('Erro ao carregar membros do Supabase:', error);
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar os membros. Usando dados locais.",
-          variant: "destructive"
-        });
-        
-        // Fallback para localStorage em caso de erro
-        const storedMembers = localStorage.getItem('church-members');
-        if (storedMembers) {
-          setMembers(JSON.parse(storedMembers));
-        } else {
-          setMembers(sampleMembers);
-          localStorage.setItem('church-members', JSON.stringify(sampleMembers));
-        }
+        setMembers([]);
+        // Não mostrar toast de erro no carregamento inicial para não incomodar o usuário
+        console.log('Supabase pode não estar configurado ou não há dados. Iniciando com lista vazia.');
       } finally {
         setIsLoading(false);
       }
@@ -404,6 +299,36 @@ export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [members]);
 
+  const refreshMembers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      if (supabaseService.isInitialized()) {
+        const supabaseMembers = await supabaseService.readMembers();
+        setMembers(supabaseMembers || []);
+        toast({
+          title: "Sucesso",
+          description: "Dados atualizados com sucesso",
+        });
+      } else {
+        setMembers([]);
+        toast({
+          title: "Aviso",
+          description: "Configure o Supabase primeiro para carregar os dados",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao recarregar membros:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível recarregar os dados",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return (
     <MemberContext.Provider value={{
       members,
@@ -415,7 +340,8 @@ export const MemberProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       config,
       updateConfig,
       importFromSheets,
-      clearMembers
+      clearMembers,
+      refreshMembers
     }}>
       {isLoading ? (
         <div className="flex items-center justify-center h-screen">

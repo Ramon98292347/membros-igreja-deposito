@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,10 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { ResponsiveContainer } from '@/components/ui/responsive-container';
 import { ResponsiveGrid } from '@/components/ui/responsive-grid';
-import { useMember, useCreateMember, useUpdateMember } from '@/hooks/useMembers';
+import { useSupabaseMembers } from '@/hooks/useSupabaseMembers';
 import { memberSchema, MemberFormData } from '@/schemas/memberSchema';
 import { toast } from '@/hooks/use-toast';
-import { Upload, Loader2, ArrowLeft } from 'lucide-react';
+import { Upload, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import { applyCpfMask, applyCepMask, applyPhoneMask, fetchAddressByCep, calculateAge, BRAZILIAN_STATES } from '../lib/masks';
 
 const MemberForm = () => {
@@ -21,9 +21,12 @@ const MemberForm = () => {
   const { id } = useParams();
   const isEditing = Boolean(id);
   
-  const { data: member, isLoading: memberLoading } = useMember(id || '');
-  const createMember = useCreateMember();
-  const updateMember = useUpdateMember();
+  const { members, isLoading: memberLoading, addMember, updateMember: updateMemberSupabase } = useSupabaseMembers();
+  const member = isEditing && id ? members.find(m => m.id === id) : null;
+  
+  // Estado para o arquivo de imagem
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
   
   const {
     register,
@@ -99,13 +102,13 @@ const MemberForm = () => {
   const onSubmit = async (data: MemberFormData) => {
     try {
       if (isEditing && id) {
-        await updateMember.mutateAsync({ id, data });
+        await updateMemberSupabase(id, data);
         toast({
           title: 'Sucesso',
           description: 'Membro atualizado com sucesso!'
         });
       } else {
-        await createMember.mutateAsync(data);
+        await addMember(data);
         toast({
           title: 'Sucesso',
           description: 'Membro criado com sucesso!'
@@ -156,6 +159,47 @@ const MemberForm = () => {
     if (birthDate) {
       const age = calculateAge(birthDate);
       setValue('idade', age);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Verificar se é uma imagem
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: 'Erro',
+          description: 'Por favor, selecione apenas arquivos de imagem.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Verificar tamanho do arquivo (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'Erro',
+          description: 'O arquivo deve ter no máximo 5MB.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      setSelectedFile(file);
+      
+      // Criar preview da imagem
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setImagePreview(result);
+        setValue('imagemLink', result); // Atualizar o campo do formulário
+      };
+      reader.readAsDataURL(file);
+      
+      toast({
+        title: 'Arquivo carregado',
+        description: `Imagem "${file.name}" carregada com sucesso.`
+      });
     }
   };
   
@@ -230,12 +274,39 @@ const MemberForm = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="imagemArquivo">Upload de Imagem</Label>
-                  <Input
-                    id="imagemArquivo"
-                    type="file"
-                    accept="image/*"
-                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
-                  />
+                  <div className="relative">
+                    <input
+                      id="imagemArquivo"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className={`flex items-center justify-center w-full h-12 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                      selectedFile 
+                        ? 'bg-green-100 border-green-400 text-green-700' 
+                        : 'bg-green-600 hover:bg-green-700 text-white border-green-300'
+                    }`}>
+                      {selectedFile ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          <span className="text-sm font-semibold truncate max-w-[200px]">
+                            {selectedFile.name}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Upload className="h-4 w-4" />
+                          <span className="text-sm font-semibold">Adicionar Foto do Membro</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {selectedFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Arquivo: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -550,13 +621,13 @@ const MemberForm = () => {
                       <SelectValue placeholder="Selecione a função" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Pastor">Pastor</SelectItem>
-                      <SelectItem value="Presbítero">Presbítero</SelectItem>
+                      <SelectItem value="Obreiro/Cooperador(a)">Obreiro/Cooperador(a)</SelectItem>
                       <SelectItem value="Diácono">Diácono</SelectItem>
-                      <SelectItem value="Obreiro">Obreiro</SelectItem>
-                      <SelectItem value="Membro">Membro</SelectItem>
-                      <SelectItem value="Missionário">Missionário</SelectItem>
+                      <SelectItem value="Presbítero">Presbítero</SelectItem>
+                      <SelectItem value="Pastor">Pastor</SelectItem>
                       <SelectItem value="Evangelista">Evangelista</SelectItem>
+                      <SelectItem value="Financeiro(a)">Financeiro(a)</SelectItem>
+                      <SelectItem value="Membro">Membro</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.funcaoMinisterial && (

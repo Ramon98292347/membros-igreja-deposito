@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import SyncButton from '@/components/SyncButton';
 import DatabaseConfig from '@/components/DatabaseConfig';
 import ChurchCarousel from '@/components/ChurchCarousel';
+import ChurchReassignment from '@/components/ChurchReassignment';
+import ContractForm from '@/components/ContractForm';
 import { useSupabaseChurches } from '@/hooks/useSupabaseChurches';
 import { toast } from '@/hooks/use-toast';
 import { supabaseService } from '@/services/supabaseService';
@@ -775,46 +777,12 @@ const ChurchManagement = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="remanejamento">
-          <Card>
-            <CardHeader>
-              <CardTitle>Remanejamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  Acesse o formulário de solicitação de remanejamento
-                </p>
-                <Button 
-                  onClick={() => navigate('/remanejamento')}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Abrir Formulário de Remanejamento
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="remanejamento" className="space-y-4">
+          <ChurchReassignment />
         </TabsContent>
 
-        <TabsContent value="contratos">
-          <Card>
-            <CardHeader>
-              <CardTitle>Contratos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  Acesse o formulário de contratos
-                </p>
-                <Button 
-                  onClick={() => navigate('/contratos')}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Abrir Formulário de Contratos
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="contratos" className="space-y-4">
+          <ContractForm />
         </TabsContent>
 
         <TabsContent value="configuracoes" className="space-y-4">
