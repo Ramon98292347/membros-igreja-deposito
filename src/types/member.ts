@@ -19,7 +19,7 @@ export interface Member {
   estadoCivil: 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)';
   nomeConjuge?: string;
   dataCasamento?: string;
-  funcaoMinisterial: 'Pastor' | 'Presbítero' | 'Diácono' | 'Obreiro' | 'Membro' | 'Missionário' | 'Evangelista';
+  funcaoMinisterial: 'Pastor' | 'Presbítero' | 'Diácono' | 'Obreiro' | 'Membro' | 'Missionário' | 'Evangelista' | 'Financeiro(a)' | 'Obreiro/Cooperador(a)';
   dataBatismo: string;
   dataOrdenacao?: string;
   igrejaBatismo: string;

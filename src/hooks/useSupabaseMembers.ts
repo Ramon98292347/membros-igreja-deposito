@@ -97,10 +97,37 @@ export function useSupabaseMembers() {
   }, [members]);
 
   // Função para adicionar membro
-  const addMember = useCallback(async (member: Omit<Member, 'id' | 'dataCadastro' | 'dataAtualizacao'>) => {
+  const addMember = useCallback(async (formData: any) => {
     setIsLoading(true);
     try {
-      const newMember = await supabaseService.writeMember(member);
+      // Converter dados do formulário para o formato Member
+      const memberData = {
+        nomeCompleto: formData.nomeCompleto || '',
+        dataNascimento: formData.dataNascimento || '',
+        idade: formData.idade || 0,
+        telefone: formData.telefone || '',
+        email: formData.email || '',
+        endereco: formData.endereco || '',
+        numeroCasa: formData.numeroCasa || '',
+        bairro: formData.bairro || '',
+        cidade: formData.cidade || '',
+        estado: formData.estado || '',
+        cep: formData.cep || '',
+        rg: formData.rg || '',
+        cpf: formData.cpf || '',
+        cidadeNascimento: formData.cidadeNascimento || '',
+        estadoCidadeNascimento: formData.estadoCidadeNascimento || '',
+        estadoCivil: formData.estadoCivil || 'Solteiro(a)',
+        funcaoMinisterial: formData.funcaoMinisterial || 'Membro',
+        dataBatismo: formData.dataBatismo || '',
+        igrejaBatismo: formData.igreja || '',
+        observacoes: formData.observacoes || '',
+        foto: formData.imagemLink || '', // Converter imagemLink para foto
+        ativo: formData.ativo ?? true,
+        profissao: formData.profissao || ''
+      };
+      
+      const newMember = await supabaseService.writeMember(memberData);
       setMembers(prev => [...prev, newMember]);
       toast({
         title: "Sucesso",
@@ -121,10 +148,37 @@ export function useSupabaseMembers() {
   }, []);
 
   // Função para atualizar membro
-  const updateMember = useCallback(async (id: string, updates: Partial<Member>) => {
+  const updateMember = useCallback(async (id: string, formData: any) => {
     setIsLoading(true);
     try {
-      const updatedMember = await supabaseService.updateMember(id, updates);
+      // Converter dados do formulário para o formato Member
+      const memberUpdates = {
+        nomeCompleto: formData.nomeCompleto,
+        dataNascimento: formData.dataNascimento,
+        idade: formData.idade,
+        telefone: formData.telefone,
+        email: formData.email,
+        endereco: formData.endereco,
+        numeroCasa: formData.numeroCasa,
+        bairro: formData.bairro,
+        cidade: formData.cidade,
+        estado: formData.estado,
+        cep: formData.cep,
+        rg: formData.rg,
+        cpf: formData.cpf,
+        cidadeNascimento: formData.cidadeNascimento,
+        estadoCidadeNascimento: formData.estadoCidadeNascimento,
+        estadoCivil: formData.estadoCivil,
+        funcaoMinisterial: formData.funcaoMinisterial,
+        dataBatismo: formData.dataBatismo,
+        igrejaBatismo: formData.igreja || '',
+        observacoes: formData.observacoes,
+        foto: formData.imagemLink, // Converter imagemLink para foto
+        ativo: formData.ativo,
+        profissao: formData.profissao
+      };
+      
+      const updatedMember = await supabaseService.updateMember(id, memberUpdates);
       setMembers(prev => prev.map(member => 
         member.id === id ? updatedMember : member
       ));

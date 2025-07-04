@@ -38,7 +38,7 @@ export const memberSchema = z.object({
   
   // Dados religiosos
   dataBatismo: z.string().optional(),
-  funcaoMinisterial: z.enum(['Pastor', 'Presbítero', 'Diácono', 'Obreiro', 'Membro', 'Missionário', 'Evangelista']).default('Membro'),
+  funcaoMinisterial: z.enum(['Pastor', 'Presbítero', 'Diácono', 'Obreiro', 'Membro', 'Missionário', 'Evangelista', 'Financeiro(a)', 'Obreiro/Cooperador(a)']).default('Membro'),
   
   // Campos do sistema antigo (manter compatibilidade)
   igreja: z.string().optional(),
